@@ -2,17 +2,20 @@
 #include <string>
 #include <iostream>
 #include <optional>
-#include <any>
 
-using std::cout;
-using std::endl;
-using std::nullopt;
-using std::optional;
-using std::ostream;
 using std::string;
 using std::vector;
+using std::cout;
+using std::endl;
+using std::ostream;
+using std::nullopt;
+using std::optional;
 
 #include "include/rapidjson/writer.h"
+using rapidjson::Document;
+using rapidjson::Value;
+using rapidjson::kArrayType;
+using rapidjson::kNullType;
 
 struct Block
 {
@@ -35,37 +38,37 @@ struct Block
         hat = true;
     }
 
-    rapidjson::Document to_sb3()
+    /*Document to_sb3()
     {
-        rapidjson::Document doc;
+        Document doc;
         doc.SetObject();
 
-        rapidjson::Document::AllocatorType &allocator = doc.GetAllocator();
+        Document::AllocatorType &allocator = doc.GetAllocator();
 
         doc.AddMember("uid", uid, allocator);
         doc.AddMember("opcode", opcode, allocator);
 
-        rapidjson::Value json_inputs(rapidjson::kArrayType);
+        Value json_inputs(kArrayType);
         for (const string &el : inputs)
         {
             json_inputs.PushBack(el, allocator);
         }
         doc.AddMember("inputs", json_inputs, allocator);
 
-        rapidjson::Value json_fields(rapidjson::kArrayType);
+        Value json_fields(kArrayType);
         for (const string &el : fields)
         {
             json_fields.PushBack(el, allocator);
         }
         doc.AddMember("fields", json_fields, allocator);
 
-        json_parent = (parent.has_value() ? parent.value() : rapidjson::Value(rapidjson::kNullType));
+        Value json_parent = (parent.has_value() ? parent.value() : Value(kNullType));
         doc.AddMember("parent", json_parent, allocator);
 
-        json_next = (next.has_value() ? next.value() : rapidjson::Value(rapidjson::kNullType));
+        Value json_next = (next.has_value() ? next.value() : Value(kNullType));
         doc.AddMember("next", json_next, allocator);
 
-        rapidjson::Value json_mutations(rapidjson::kArrayType);
+        Value json_mutations(kArrayType);
         doc.AddMember("mutations", json_mutations, allocator);
 
         rapidjson::StringBuffer buffer;
@@ -73,7 +76,7 @@ struct Block
         doc.Accept(writer);
 
         return doc;
-    }
+    }*/
 };
 
 vector<string> tokenize(string &basm_code)
