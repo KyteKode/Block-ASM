@@ -10,5 +10,5 @@ uid 0002 ;
 parent 0001 ;
 opcode looks_say ;
 next null ;
-input MESSAGE string Hello, world! ;
+in MESSAGE string Hello, world! ;
 end ;
