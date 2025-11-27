@@ -4,7 +4,7 @@ Copyright (C) 2025 Kai (KyteKode)
 This project is licensed under the GNU General Public License version 3 (GPLv3).
 You are free to use, modify, and reditribut this software under the terms of the GPLv3.
 
-This project also uses RapidJSON, which is under the MIT license. Check the licenses folder for the MIT license.
+This project also uses Niels Lohmann's JSON for Modern C++s, which is under the MIT license. Check the licenses folder for the MIT license.
 
 
 

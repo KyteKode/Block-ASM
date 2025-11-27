@@ -1,247 +1,47 @@
-#include <vector>
 #include <string>
-#include <iostream>
-#include <optional>
+#include <vector>
+#include <algorithm>
+#include <fstream>
 
-using std::string;
-using std::vector;
-using std::cout;
-using std::endl;
-using std::ostream;
-using std::nullopt;
-using std::optional;
+#include <basm.hpp>
 
-#include "include/rapidjson/writer.h"
-using rapidjson::Document;
-using rapidjson::Value;
-using rapidjson::kArrayType;
-using rapidjson::kNullType;
+int main(int argc, char* argv[]) {
+    std::vector<std::string> args(argv, argv + argc);
 
-struct Block
-{
-    string uid;
-    string opcode;
-    vector<string> inputs;
-    vector<string> fields;
-    optional<string> parent;
-    optional<string> next;
-    bool hat;
+    std::ifstream basm_file(args[1]);
 
-    void reset()
-    {
-        uid = "";
-        opcode = "";
-        inputs = {};
-        fields = {};
-        parent = nullopt;
-        next = nullopt;
-        hat = true;
+    auto it = std::find(args.begin(), args.end(), "-o");
+    std::string out_name;
+    if (it != args.end()) {
+        int idx = std::distance(args.begin(), it);
+        out_name = args[idx];
+    } else {
+        out_name = args[1] + ".sb3";
     }
 
-    /*Document to_sb3()
-    {
-        Document doc;
-        doc.SetObject();
+    // TODO: handle compilation flags other than -os
 
-        Document::AllocatorType &allocator = doc.GetAllocator();
-
-        doc.AddMember("uid", uid, allocator);
-        doc.AddMember("opcode", opcode, allocator);
-
-        Value json_inputs(kArrayType);
-        for (const string &el : inputs)
-        {
-            json_inputs.PushBack(el, allocator);
-        }
-        doc.AddMember("inputs", json_inputs, allocator);
-
-        Value json_fields(kArrayType);
-        for (const string &el : fields)
-        {
-            json_fields.PushBack(el, allocator);
-        }
-        doc.AddMember("fields", json_fields, allocator);
-
-        Value json_parent = (parent.has_value() ? parent.value() : Value(kNullType));
-        doc.AddMember("parent", json_parent, allocator);
-
-        Value json_next = (next.has_value() ? next.value() : Value(kNullType));
-        doc.AddMember("next", json_next, allocator);
-
-        Value json_mutations(kArrayType);
-        doc.AddMember("mutations", json_mutations, allocator);
-
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        doc.Accept(writer);
-
-        return doc;
-    }*/
-};
-
-vector<string> tokenize(string &basm_code)
-{
-    if (basm_code.back() != ' ')
-    {
-        basm_code.push_back(' ');
-    }
-
-    vector<string> tokens;
-    bool notString = true;
-
-    string token;
-    char prev_char = '\0';
-    for (char c : basm_code)
-    {
-        bool next_token = c == ' ';
-        next_token = next_token || c == '\n';
-        next_token = next_token && notString;
-
-        if (next_token)
-        {
-            tokens.push_back(token);
-            token = "";
-        }
-        else
-        {
-            if (c == '"' && prev_char != '\\')
-            {
-                notString = !notString;
-            }
-            token.push_back(c);
-        }
-        prev_char = c;
-    }
-
-    return tokens;
+    return 0;
 }
 
-vector<Block> parse(vector<string> &tokens)
-{
-    vector<Block> blocks = {};
-
-    Block b;
-
-    int token_type = 0;
-    for (string token : tokens)
-    {
-        switch (token_type)
-        {
-        case 0: // Parent
-            if (token != "hat")
-            {
-                b.hat = false;
-                b.parent = token;
-            }
-            token_type = 1;
-            break;
-        case 1: // UID
-            b.uid = token;
-            token_type = 2;
-            break;
-        case 2: // Opcode
-            b.opcode = token;
-            token_type = 3;
-            break;
-        case 3: // Input
-            if (token == "/")
-            {
-                token_type = 4;
-            }
-            else
-            {
-                char start = token.at(0);
-                char end = token.back();
-                if (start == '"' && end == '"')
-                {
-                    string data = token.substr(1, token.length() - 2);
-                    b.inputs.push_back(data);
-                }
-            }
-            break;
-        case 4: // Field
-            if (token == ";")
-            {
-                token_type = 5;
-            }
-            else
-            {
-                char start = token.at(0);
-                char end = token.back();
-                if (start == '"' && end == '"')
-                {
-                    string data = token.substr(1, token.length() - 2);
-                    b.fields.push_back(data);
-                }
-            }
-            break;
-        case 5: // Next
-            if (token != "null")
-            {
-                b.next = token;
-            }
-            token_type = 6;
-            break;
-        case 6:
-            blocks.push_back(b);
-            b.reset();
-            token_type = 0;
-            break;
-        }
-    }
-
-    return blocks;
-}
-
-template <typename T>
-ostream &operator<<(ostream &os, const vector<T> &vector_in)
-{
-    os << '{' << endl;
-    for (const T &value : vector_in)
-    {
-        os << value;
-    }
-    os << '}' << std::flush;
-    return os;
-}
-
-ostream &operator<<(ostream &os, const optional<string> opt_string)
-{
-    os << (opt_string.has_value() ? opt_string.value() : "nullopt");
-    return os;
-}
-
-ostream &operator<<(ostream &os, const Block &block)
-{
-    os << "UID: " << block.uid << endl;
-    os << "Opcode: " << block.opcode << endl;
-    os << "Inputs: " << block.inputs << endl;
-    os << "Fields: " << block.fields << endl;
-    os << "Parent: " << block.parent << endl;
-    os << "Next: " << block.next << endl;
-    os << "Hat: " << block.hat << endl;
-    return os;
-}
-
-int main()
-{
-    /*
-    hat 0001 event_whenflagclicked / ; 0002 end
-    0001 0002 looks_say "Hello, world!" / ; 0003 end
-    0002 0003 control_stop / "all" ; null end
-
-    should be:
-
-    when green flag clicked
-    say(Hello, world!)
-    stop [all v]
-    */
-
-    string text = R"(hat 0001 event_whenflagclicked / ; 0002 end
-0001 0002 looks_say "Hello, world!" / ; 0003 end
-0002 0003 control_stop / "all" ; null end)";
-
-    auto tokens = tokenize(text);
-
-    cout << parse(tokens);
-}
+/*
+-o changes output file name
+--reverse converts sb3 back to basm source
+-Wop checks for invalid opcodes
+-Wparent checks for invalid parent pointers
+-Wnext checks for invalid next pointers
+-Win checks for invalid inputs
+-Wfield checks for invalid fields
+-Wmut checks for invalid mutations
+-Wall checks for invalid anything
+-Werror treats warnings as errors
+--stdout returns the sb3 binary in stdout
+--verbose tells you the source code path, when tokenization starts, when tokenization ends, how long tokenization took,
+how many tokens there are in total, how many tokens of each type there are, when parsing starts, when parsing ends,
+how long parsing took, how many AST nodes there were in total, how many of each node type there are, how many blocks there are in total,
+how many sprites there are in total and their names, how many blocks are in each sprite, how many threads there are in total,
+how many threads are in each sprite, how many global variables there are and their names and values, how many cloud variables there are and their names,
+how many sprite variables there are and their names and owners and values, how many global lists there are and their names,
+how many sprite lists there are and their names and owners, when sb3 conversion starts, when sb3 conversion ends,
+how long sb3 conversion took, and the path to the resulting sb3.
+*/
