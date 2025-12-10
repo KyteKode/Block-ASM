@@ -3,10 +3,9 @@ mod errors;
 
 use std::env;
 use std::fs;
-use std::process;
 
 use errors::error;
-use errors:warn;
+use errors::warn;
 
 
 
@@ -23,6 +22,7 @@ struct CompilationData {
     win: bool,
     wfield: bool,
     wmut: bool,
+    wshadow: bool,
     wall: bool,
     werror: bool,
     wno_op: bool,
@@ -32,6 +32,7 @@ struct CompilationData {
     wno_in: bool,
     wno_field: bool,
     wno_mut: bool,
+    wno_shadow: bool,
     stdout: bool,
     reverse: bool
 }
@@ -74,6 +75,8 @@ fn main() {
     let flags = [
         (&mut data.verbose, "--verbose"),
         (&mut data.stdout, "--stdout"),
+        (&mut data.reverse, "--reverse"),
+        (&mut data.log, "--log"),
         (&mut data.wop, "-Wop"),
         (&mut data.wuid, "-Wuid"),
         (&mut data.wparent, "-Wparent"),
@@ -81,6 +84,7 @@ fn main() {
         (&mut data.win, "-Win"),
         (&mut data.wfield, "-Wfield"),
         (&mut data.wmut, "-Wmut"),
+        (&mut data.wshadow, "-Wshadow"),
         (&mut data.wall, "-Wall"),
         (&mut data.werror, "-Werror"),
         (&mut data.wno_op, "-Wno-op"),
@@ -90,10 +94,11 @@ fn main() {
         (&mut data.wno_in, "-Wno-in"),
         (&mut data.wno_field, "-Wno-field"),
         (&mut data.wno_mut, "-Wno-mut"),
+        (&mut data.wno_shadow, "-Wno_shadow")
     ];
 
     for (flag, name) in flags {
-        let (found, pos) = find_el(&args, &mut used, name);
+        let (found, _) = find_el(&args, &mut used, name);
         if found {
             *flag = true;
         }
@@ -114,6 +119,7 @@ fn main() {
             (data.wmut, "-Wmut"),
             (data.wall, "-Wall"),
             (data.werror, "-Werror"),
+            (data.wshadow, "-Wshadow")
         ];
 
         if found {
@@ -139,6 +145,7 @@ fn main() {
             (data.wno_in, "-Wno-in"),
             (data.wno_field, "-Wno-field"),
             (data.wno_mut, "-Wno-mut"),
+            (data.wno_shadow, "-Wno_shadow")
         ];
 
         for ((w_flag, w_name), (wno_flag, wno_name)) in w_flags.iter().zip(wno_flags.iter()) {
@@ -159,7 +166,7 @@ fn main() {
                 data.outname = (*filename).clone();
             },
             Err(e) => {
-                error(&format!("File {}, {}", filename, e));
+                error(format!("File {}, {}", filename, e));
             }
         };
     }

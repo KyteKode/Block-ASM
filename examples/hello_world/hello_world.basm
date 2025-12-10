@@ -1,0 +1,29 @@
+[Stage]
+.isStage true
+
+costume
+idx 1
+name blank
+data
+
+[basm]
+.costume 1 "logo" "basm.svg"
+
+block
+    uid "0001"
+    opcode "event_whenflagclicked"
+    parent null
+    next "0002"
+    shadow false
+    topLevel true
+end
+
+block
+    uid "0002"
+    opcode "looks_say"
+    parent "0001"
+    next "null"
+    in "MESSAGE" string "Hello, world!"
+    shadow false
+    topLevel false
+end

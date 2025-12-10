@@ -1,6 +1,11 @@
-use colored::Colorized;
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2025 KyteKode
 
-fn error(msg: &str) -> ! {
+use std::process;
+
+use colored::Colorize;
+
+pub fn error(msg: String) -> ! {
     eprintln!(
         "{}",
         format!("Error: {}", msg).red()
@@ -8,7 +13,7 @@ fn error(msg: &str) -> ! {
     process::exit(1);
 }
 
-fn warn(msg: &str) {
+pub fn warn(msg: &str) {
     eprintln!(
         "{}",
         format!("Warning: {}", msg).yellow()
