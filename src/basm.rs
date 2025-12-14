@@ -2,10 +2,45 @@
 
 // i honestly have no idea if this works or not, i havent tested it
 
-use crate::errors;
+#![allow(unused)]
 
-use errors::error;
+use std::collections::HashSet;
 
+use crate::errors::throw_error;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WarningType {
+    Op,
+    Uid,
+    Parent,
+    Next,
+    In,
+    Field,
+    Mut,
+    Shadow,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CompilationData {
+    pub outname: String,
+    pub source: String,
+
+    pub version: bool,
+    pub verbose: bool,
+    pub log: bool,
+
+    pub stdout: bool,
+
+    pub reverse: bool,
+
+    pub warn: HashSet<WarningType>,
+    pub no_warn: HashSet<WarningType>,
+    pub wall: bool,
+    pub werror: bool
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Block,
     Uid,
@@ -48,13 +83,14 @@ pub enum Token {
     SpriteHeader(String)
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 enum TokenizationMode {
     Normal,
     String,
     SpriteHeader
 }
 
+#[allow(clippy::needless_return)]
 fn tokenize_string(s_token: String) -> Token {
     return match &*s_token {
         "block" => Token::Block,
@@ -105,26 +141,22 @@ fn tokenize_string(s_token: String) -> Token {
                     let result: String = chars[1..chars.len()-1].iter().collect();
                     return Token::SpriteHeader(result);
                 } else if misc == "true" || misc == "false" {
-                    if misc == "true" {
-                        return Token::BoolLit(true);
-                    } else {
-                        return Token::BoolLit(false);
-                    }
+                    return Token::BoolLit(misc == "true");
                 } else {
                     let parsed = misc.parse::<f64>();
                     match parsed {
                         Ok(_) => Token::NumLit(misc.to_string()),
-                        Err(_) => error(format!("{} is not a keyword, string, or number", misc))
+                        Err(_) => throw_error(format!("{} is not a keyword, string, or number", misc))
                     }
-                } 
+                }
             } else {
-                error(String::from("If you see this, something went wrong internally with tokenization."));
+                unreachable!()
             }
         }
     };
 }
 
-fn tokenize(basm_code: &str) -> Vec<Token> {
+pub fn tokenize(basm_code: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
 
     let chars = basm_code.chars().collect::<Vec<_>>();
@@ -175,7 +207,7 @@ fn tokenize(basm_code: &str) -> Vec<Token> {
         if ch == &']' {
             s_token.push(']');
             mode = match mode {
-                TokenizationMode::Normal => error(format!("Line {}: Cannot close sprite header without opening it", line)),
+                TokenizationMode::Normal => throw_error(format!("Line {}: Cannot close sprite header without opening it", line)),
                 TokenizationMode::String => TokenizationMode::String,
                 TokenizationMode::SpriteHeader => TokenizationMode::Normal
             }
@@ -188,15 +220,98 @@ fn tokenize(basm_code: &str) -> Vec<Token> {
             }
             s_token = String::new();
         } else if ch == &'\n' && mode == TokenizationMode::SpriteHeader {
-            error(format!("Line {}: Cannot use newline in sprite header", line));
+            throw_error(format!("Line {}: Cannot use newline in sprite header", line));
         } else {
             s_token.push(*ch);
         }
     }
 
-    if mode == TokenizationMode::String { error(format!("Unterminated string on line {}", string_start.to_string())); }
+    if mode == TokenizationMode::String { throw_error(format!("Unterminated string on line {}", string_start.to_string())); }
 
     tokens
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Type {
+    String,
+    Double,
+    Int,
+    ListIdx,
+    Wait,
+    BlockPtr,
+    Substack,
+    RecievedBroadcast,
+    DataPtr
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum MonitorType {
+    #[default]
+    Normal,
+    Big,
+    Slider(Type, f64, f64)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Node {
+    Root(Vec<Node>),
+    Sprite(Vec<Node>),
+    NameProperty(String),
+    IsStageProperty(bool),
+    // visible, uid, name, type, value, monitor type
+    VariableData(bool, String, String, Type, String, MonitorType),
+    // visible, values
+    ListData(bool, Vec<String>),
+    // uid, name
+    BroadCastProperty(String, String),
+    // name, path to svg, x center, y center
+    CostumeVector(String, String, f64, f64),
+    // TODO: do bitmap costume and sound
+    VolumeProperty(f64),
+    Block(Vec<Node>),
+    Uid(String),
+    Parent(String),
+    Next(String),
+    In(String, Box<Node>),
+    Field(String, String),
+    NullData,
+    StringData(String),
+    DoubleSata(f64),
+    IntData(i64),
+    ListIdxData(i64),
+    WaitData(f64),
+    BlockPtrData(String),
+    SubstackData(String),
+    ReceivedBroadcastData(String),
+    DataPtrData(String)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ParsingState {
+    Root,
+    Sprite
+}
+
+fn parse_token(token: &Token, root: &mut Node, state: &ParsingState) -> Node {
+    let Node::Root(ref mut children) = *root else {
+        unreachable!()
+    };
+
+    match token {
+        Token::SpriteHeader(name) => {
+            if *state == ParsingState::Root {
+            }
+        },
+        _ => todo!("Parse other tokens")
+    }
+
+    todo!("Finish parsing for single token")
+}
+
+pub fn parse(tokens: &Vec<Token>) -> Node {
+    let mut root = Node::Root(Vec::new());
+
+    todo!("Add actual parsing");
 }
 
 // old parsing code from before sprites were added to basm

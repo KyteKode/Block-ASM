@@ -4,40 +4,9 @@ mod errors;
 use std::env;
 use std::fs;
 
-use errors::error;
-use errors::warn;
+use errors::*;
 
-
-
-#[derive(Default)]
-struct CompilationData {
-    outname: String,
-    source: String,
-    verbose: bool,
-    log: bool,
-    wop: bool,
-    wuid: bool,
-    wparent: bool,
-    wnext: bool,
-    win: bool,
-    wfield: bool,
-    wmut: bool,
-    wshadow: bool,
-    wall: bool,
-    werror: bool,
-    wno_op: bool,
-    wno_uid: bool,
-    wno_parent: bool,
-    wno_next: bool,
-    wno_in: bool,
-    wno_field: bool,
-    wno_mut: bool,
-    wno_shadow: bool,
-    stdout: bool,
-    reverse: bool
-}
-
-
+use basm::CompilationData;
 
 fn use_bit(bitfield: &mut u32, pos: u32) {
     *bitfield |= 1u32 << pos;
@@ -57,8 +26,7 @@ fn main() {
     let mut data = CompilationData::default();
 
     let args: Vec<String> = env::args().collect();
-
-    let mut used: u32 = 0b11;
+    let mut used: u32 = 0b11; // checks which terminal arguments are used
 
     let (found, pos) = find_el(&args, &mut used, "-o");
     if found {
@@ -72,91 +40,46 @@ fn main() {
         }
     }
 
-    let flags = [
-        (&mut data.verbose, "--verbose"),
-        (&mut data.stdout, "--stdout"),
-        (&mut data.reverse, "--reverse"),
-        (&mut data.log, "--log"),
-        (&mut data.wop, "-Wop"),
-        (&mut data.wuid, "-Wuid"),
-        (&mut data.wparent, "-Wparent"),
-        (&mut data.wnext, "-Wnext"),
-        (&mut data.win, "-Win"),
-        (&mut data.wfield, "-Wfield"),
-        (&mut data.wmut, "-Wmut"),
-        (&mut data.wshadow, "-Wshadow"),
-        (&mut data.wall, "-Wall"),
-        (&mut data.werror, "-Werror"),
-        (&mut data.wno_op, "-Wno-op"),
-        (&mut data.wno_uid, "-Wno-uid"),
-        (&mut data.wno_parent, "-Wno-parent"),
-        (&mut data.wno_next, "-Wno-next"),
-        (&mut data.wno_in, "-Wno-in"),
-        (&mut data.wno_field, "-Wno-field"),
-        (&mut data.wno_mut, "-Wno-mut"),
-        (&mut data.wno_shadow, "-Wno_shadow")
-    ];
+    let warnings;
+    {
+        use basm::WarningType::*;
 
-    for (flag, name) in flags {
+        warnings = [
+            (Op, "-Wop", "-Wno-op"),
+            (Uid, "-Wuid", "-Wuid-op"),
+            (Parent, "-Wparent", "-Wno-parent"),
+            (Next, "-Wnext", "-Wno-next"),
+            (In, "-Win", "-Wno-in"),
+            (Field, "-Wfield", "-Wno-field"),
+            (Mut, "-Wmut", "-Wno-mut"),
+            (Shadow, "-Wshadow", "-Wno-shadow")
+        ];
+    }
+
+    for (warning, name, no_name) in warnings {
         let (found, _) = find_el(&args, &mut used, name);
-        if found {
-            *flag = true;
-        }
+        if found { data.warn.insert(warning); }
+
+        let (found, _) = find_el(&args, &mut used, no_name);
+        if found { data.no_warn.insert(warning); }
     }
 
 
 
-
-    let (found, _) = find_el(&args, &mut used, "--reverse");
+    let (reverse_found, _) = find_el(&args, &mut used, "--reverse");
     if data.verbose {
-        let w_flags = [
-            (data.wop, "-Wop"),
-            (data.wuid, "-Wuid"),
-            (data.wparent, "-Wparent"),
-            (data.wnext, "-Wnext"),
-            (data.win, "-Win"),
-            (data.wfield, "-Wfield"),
-            (data.wmut, "-Wmut"),
-            (data.wall, "-Wall"),
-            (data.werror, "-Werror"),
-            (data.wshadow, "-Wshadow")
-        ];
-
-        if found {
-            for (flag_set, flag_name) in w_flags {
-                if flag_set {
-                    warn(&format!("{} is ignored when using --reverse", flag_name));
-                }
-            }
-        }
-        if data.wall {
-            for (flag_set, flag_name) in w_flags {
-                if flag_set {
-                    warn(&format!("{} is redundant when used with -Wall", flag_name));
-                }
-            }
-        }
-
-        let wno_flags = [
-            (data.wno_op, "-Wno-op"),
-            (data.wno_uid, "-Wno-uid"),
-            (data.wno_parent, "-Wno-parent"),
-            (data.wno_next, "-Wno-next"),
-            (data.wno_in, "-Wno-in"),
-            (data.wno_field, "-Wno-field"),
-            (data.wno_mut, "-Wno-mut"),
-            (data.wno_shadow, "-Wno_shadow")
-        ];
-
-        for ((w_flag, w_name), (wno_flag, wno_name)) in w_flags.iter().zip(wno_flags.iter()) {
-            if *w_flag && *wno_flag {
-                warn(&format!("{} and {} are redundant when used together", w_name, wno_name));
+        for (warning, name, no_name) in warnings {
+            if data.warn.contains(&warning) {
+                if reverse_found { throw_warning(&format!("{} is ignored when using --reverse", name)); }
+                if data.wall { throw_warning(&format!("{} is redundant when used with -Wall", name)); }
+                if data.no_warn.contains(&warning) {
+                    throw_warning(&format!("{} and {} are redundant when used together", name, no_name));
+                }  
             }
         }
     }
 
-
-
+    
 
     if used & (1u32 << (args.len() - 1)) == 0 {
         let filename = args.last().unwrap();
@@ -166,7 +89,7 @@ fn main() {
                 data.outname = (*filename).clone();
             },
             Err(e) => {
-                error(format!("File {}, {}", filename, e));
+                throw_error(format!("File {}, {}", filename, e));
             }
         };
     }

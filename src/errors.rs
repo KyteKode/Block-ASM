@@ -5,7 +5,7 @@ use std::process;
 
 use colored::Colorize;
 
-pub fn error(msg: String) -> ! {
+pub fn throw_error(msg: String) -> ! {
     eprintln!(
         "{}",
         format!("Error: {}", msg).red()
@@ -13,7 +13,7 @@ pub fn error(msg: String) -> ! {
     process::exit(1);
 }
 
-pub fn warn(msg: &str) {
+pub fn throw_warning(msg: &str) {
     eprintln!(
         "{}",
         format!("Warning: {}", msg).yellow()
