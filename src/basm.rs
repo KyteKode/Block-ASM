@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2025 KyteKode
 
-// i honestly have no idea if this works or not, i havent tested it
+// I honestly have no idea if this works or not, I haven't tested it.
 
 #![allow(unused)]
 
@@ -304,7 +305,7 @@ enum ParsingState {
     BlockNext,
     BlockInKey,
     BlockInType,
-    BlockInVal,
+    BlockInVal(Type),
     BlockFieldKey,
     BlockFieldVal,
     BlockMut,
@@ -414,13 +415,22 @@ fn parse_token(
                 "Cannot use shadow outside of block scope"
             );
         },
-        Token::StringDecl => {
+        _ => {
             if *state == ParsingState::BlockInType {
-                todo!("Parse StringDecl for inputs");
-                *state == ParsingState::BlockInVal;
+                *state == ParsingState::BlockInVal(match token {
+                    Token::StringDecl => Type::String,
+                    Token::DoubleDecl => Type::Double,
+                    Token::IntDecl => Type::Int,
+                    Token::ListIdxDecl => Type::ListIdx,
+                    Token::WaitDecl => Type::Wait,
+                    Token::BlockPtrDecl => Type::BlockPtr,
+                    Token::SubstackDecl => Type::Substack,
+                    Token::ReceivedBroadcastDecl => Type::RecievedBroadcast,
+                    Token::DataPtrDecl => Type::DataPtr,
+                    _ => unreachable!()
+                });
             }
         }
-        _ => todo!("Parse other tokens")
     }
 
     todo!("Finish parsing for single token")
