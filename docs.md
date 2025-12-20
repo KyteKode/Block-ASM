@@ -3,6 +3,7 @@
 Sprites are declared with the sprite name surrounded by brackets. For example, to declare a sprite named `Cat`, you would use `[Cat]`.
 
 They also have many properties.
+
 |Name|What it does|How to use in `basm`|
 |-|-|-|
 |isStage|Determines whether the sprite is the stage|Use `.isStage` keyword, then use a boolean literal (`true`/`false`)|

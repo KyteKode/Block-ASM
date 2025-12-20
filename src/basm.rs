@@ -91,7 +91,9 @@ enum TokenizationMode {
 }
 
 #[allow(clippy::needless_return)]
-fn tokenize_string(s_token: String) -> Token {
+fn tokenize_string(
+    s_token: String
+) -> Token {
     return match &*s_token {
         "block" => Token::Block,
         "uid" => Token::Uid,
@@ -156,7 +158,9 @@ fn tokenize_string(s_token: String) -> Token {
     };
 }
 
-pub fn tokenize(basm_code: &str) -> Vec<Token> {
+pub fn tokenize(
+    basm_code: &str
+) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
 
     let chars = basm_code.chars().collect::<Vec<_>>();
@@ -231,6 +235,9 @@ pub fn tokenize(basm_code: &str) -> Vec<Token> {
     tokens
 }
 
+
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
     String,
@@ -289,70 +296,7 @@ pub enum Node {
 #[derive(Debug, PartialEq, Eq)]
 enum ParsingState {
     Root,
-    Sprite
-}
-
-fn parse_token(token: &Token, root: &mut Node, state: &ParsingState) -> Node {
-    let Node::Root(ref mut children) = *root else {
-        unreachable!()
-    };
-
-    match token {
-        Token::SpriteHeader(name) => {
-            if *state == ParsingState::Root {
-            }
-        },
-        _ => todo!("Parse other tokens")
-    }
-
-    todo!("Finish parsing for single token")
-}
-
-pub fn parse(tokens: &Vec<Token>) -> Node {
-    let mut root = Node::Root(Vec::new());
-
-    todo!("Add actual parsing");
-}
-
-// old parsing code from before sprites were added to basm
-/*pub enum Node {
-    Root(Vec<Node>),
-    Block(Vec<Node>),
-    Uid(String),
-    Opcode(String),
-    Parent(String),
-    Next(String),
-    In(String, Box<Node>),
-    Field(String, Box<Node>),
-    NullData,
-    StringData(String),
-    DoubleData(f64),
-    IntData(i64),
-    ListIdxData(i64),
-    WaitData(f64),
-    BlockPtrData(String),
-    SubstackData(String),
-    ReceivedBroadcastData(String),
-    DataPtrData(String),
-    Placeholder
-}
-
-#[derive(PartialEq)]
-enum Type {
-    String,
-    Double,
-    Int,
-    ListIdx,
-    Wait,
-    BlockPtr,
-    Substack,
-    ReceivedBroadcast,
-    DataPtr
-}
-
-#[derive(PartialEq)]
-enum ParsingState {
-    Normal,
+    Sprite,
     Block,
     BlockUid,
     BlockOpcode,
@@ -360,125 +304,132 @@ enum ParsingState {
     BlockNext,
     BlockInKey,
     BlockInType,
-    BlockInVal(Type),
+    BlockInVal,
     BlockFieldKey,
-    BlockFieldType,
-    BlockFieldVal(Type),
-    BlockMut
+    BlockFieldVal,
+    BlockMut,
+    BlockShadow,
 }
-fn parse_type_annotation(state: &mut ParsingState, parsing_type: Type, name: &str) {
-    if *state == ParsingState::BlockInType {
-        *state = ParsingState::BlockInVal(parsing_type);
-    } else if *state == ParsingState::BlockFieldType {
-        *state = ParsingState::BlockFieldVal(parsing_type);
+
+fn parse_change_state(
+    state: &mut ParsingState,
+    checked_state: ParsingState,
+    result_state: ParsingState,
+    error: &str
+) {
+    if *state == checked_state {
+        *state = result_state;
     } else {
-        error(format!("The {} type annotation cannot be used outside input and field data", name))
+        throw_error(error.to_string());
     }
 }
 
-#[allow(unused_assignments)]
-fn parse(tokens: Vec<Token>) -> Node {
-    let mut ast = Node::Root(vec![]);
-    let mut state = ParsingState::Normal;
+fn parse_token(
+    token: &Token,
+    root: &mut Node,
+    state: &mut ParsingState
+) -> Node {
+    let Node::Root(ref mut children) = *root else {
+        unreachable!()
+    };
 
-    if let Node::Root(ref mut root_vec) = ast {
-        for token in tokens {
-            match token {
-                Token::Block => {
-                    if state == ParsingState::Normal {
-                        state = ParsingState::Block;
-                        root_vec.push(Node::Block(vec![]));
-                    } else {
-                        error("Cannot define block inside block".to_string());
-                    }
-                },
-                Token::Uid => {
-                    if state == ParsingState::Block {
-                        state = ParsingState::BlockUid;
-                    } else {
-                        error("Cannot use uid outside of block".to_string());
-                    }
-                },
-                Token::Opcode => {
-                    if state == ParsingState::Block {
-                        state = ParsingState::BlockOpcode;
-                    } else {
-                        error("Cannot use opcode outside of block".to_string());
-                    }
-                },
-                Token::Parent => {
-                    if state == ParsingState::Block {
-                        state = ParsingState::BlockParent;
-                    } else {
-                        error("Cannot use parent outside of block".to_string());
-                    }
-                },
-                Token::Next => {
-                    if state == ParsingState::Block {
-                        state = ParsingState::BlockNext;
-                    } else {
-                        error("Cannot use next outside of block".to_string())
-                    }
-                },
-                Token::In => {
-                    if state == ParsingState::Block {
-                        state = ParsingState::BlockInKey;
-                    } else {
-                        error("Cannot use in outside of block".to_string());
-                    }
-                },
-                Token::StringDecl => parse_type_annotation(&mut state, Type::String, "string"),
-                Token::DoubleDecl => parse_type_annotation(&mut state, Type::Double, "double"),
-                Token::IntDecl => parse_type_annotation(&mut state, Type::Int, "int"),
-                Token::ListIdxDecl => parse_type_annotation(&mut state, Type::ListIdx, "list_idx"),
-                Token::WaitDecl => parse_type_annotation(&mut state, Type::Wait, "wait"),
-                Token::BlockPtrDecl => parse_type_annotation(&mut state, Type::BlockPtr, "block_ptr"),
-                Token::SubstackDecl => parse_type_annotation(&mut state, Type::Substack, "substack"),
-                Token::ReceivedBroadcastDecl => parse_type_annotation(&mut state, Type::ReceivedBroadcast, "received_broadcast"),
-                Token::DataPtrDecl => parse_type_annotation(&mut state, Type::DataPtr, "data_ptr"),
-                Token::StringLit(data) => {
-                    if let Some(block) = root_vec.last_mut() {
-                        if let Node::Block(block_contents) = block {
-                            block_contents.push(match state {
-                                ParsingState::BlockUid => Node::Uid(data),
-                                ParsingState::BlockOpcode => Node::Opcode(data),
-                                ParsingState::BlockParent => Node::Parent(data),
-                                ParsingState::BlockNext => Node::Next(data),
-                                ParsingState::BlockInKey => {
-                                    state = ParsingState::BlockInType;
-                                    Node::In(data, Box::new(Node::Placeholder))
-                                },
-                                ParsingState::BlockInVal(val_type) => {
-                                    state = ParsingState::Block;
-                                    if let Some(Node::In(_, boxed_data)) = block_contents.last_mut() {
-                                        *boxed_data = Box::new(match val_type {
-                                            Type::String => Node::StringData(data),
-                                            Type::BlockPtr => Node::BlockPtrData(data),
-                                            Type::Substack => Node::SubstackData(data),
-                                            Type::ReceivedBroadcast => Node::ReceivedBroadcastData(data),
-                                            Type::DataPtr => Node::DataPtrData(data),
-                                            _ => { Node::Placeholder } //Placeholder, give error code
-                                        });
-                                    }
-                                    return Node::Placeholder;
-                                },
-                                _ => { Node::Placeholder } // here for the same reason as the one down there
-                            });
-                        }
-                    }
-                    state = ParsingState::Block;
-                },
-                _ => {} // here so rust doesn't scream when im not finished with all the arms
+    match token {
+        Token::SpriteHeader(name) => {
+            parse_change_state(
+                state,
+                ParsingState::Root,
+                ParsingState::Sprite,
+                "Cannot use sprite header outside of global scope"
+            );
+        },
+        Token::Block => {
+            parse_change_state(
+                state,
+                ParsingState::Sprite,
+                ParsingState::Block,
+                "Cannot use block outside of sprite scope"
+            );
+        },
+        Token::Uid => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockUid,
+                "Cannot use uid outside of block scope"
+            );
+        },
+        Token::Opcode => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockOpcode,
+                "Cannot use opcode outside of block scope"
+            );
+        },
+        Token::Parent => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockParent,
+                "Cannot use parent outside of block scope"
+            );
+        },
+        Token::Next => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockNext,
+                "Cannot use next outside of block scope"
+            );
+        },
+        Token::In => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockInKey,
+                "Cannot use in outside of block scope"
+            );
+        },
+        Token::Field => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockFieldKey,
+                "Cannot use field outside of block scope"
+            );
+        },
+        Token::Mut => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockMut,
+                "Cannot use mut outside of block scope"
+            );
+        },
+        Token::Shadow => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockShadow,
+                "Cannot use shadow outside of block scope"
+            );
+        },
+        Token::StringDecl => {
+            if *state == ParsingState::BlockInType {
+                todo!("Parse StringDecl for inputs");
+                *state == ParsingState::BlockInVal;
             }
         }
+        _ => todo!("Parse other tokens")
     }
 
-    ast
+    todo!("Finish parsing for single token")
 }
 
-#[allow(unused)]
-fn compile(basm_code: &str) {
-    let tokens: Vec<Token> = tokenize(basm_code);
-    //let ast: Node = parse(tokens);
-    //wip
-} */
+pub fn parse(
+    tokens: &Vec<Token>
+) -> Node {
+    let mut root = Node::Root(Vec::new());
+
+    todo!("Add actual parsing")
+}
