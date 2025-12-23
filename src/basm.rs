@@ -52,6 +52,8 @@ pub enum Token {
     Field,
     Mut,
     Shadow,
+    XPos,
+    YPos,
     StringDecl,
     DoubleDecl,
     IntDecl,
@@ -62,6 +64,8 @@ pub enum Token {
     ReceivedBroadcastDecl,
     DataPtrDecl,
     End,
+    VarBlock,
+    Name,
     NullLit,
     StringLit(String),
     NumLit(String),
@@ -104,6 +108,8 @@ fn tokenize_string(
         "in" => Token::In,
         "field" => Token::Field,
         "mut" => Token::Mut,
+        "x_pos" => Token::XPos,
+        "y_pos" => Token::YPos,
         "string" => Token::StringDecl,
         "double" => Token::DoubleDecl,
         "int" => Token::IntDecl,
@@ -114,6 +120,8 @@ fn tokenize_string(
         "received_broadcast" => Token::ReceivedBroadcastDecl,
         "data_ptr" => Token::DataPtrDecl,
         "end" => Token::End,
+        "var_block" => Token::VarBlock,
+        "name" => Token::Name,
         "null" => Token::NullLit,
         ".isStage" => Token::IsStageProperty,
         ".name" => Token::NameProperty,
@@ -240,16 +248,16 @@ pub fn tokenize(
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Type {
+pub enum SB3Type {
     String,
     Double,
     Int,
     ListIdx,
-    Wait,
-    BlockPtr,
-    Substack,
+    Wait, // used in wait blocks
+    BlockPtr, // used for shadow blocks and blocks inside blocks
+    Substack, // used in boolean inputs and c blocks
     RecievedBroadcast,
-    DataPtr
+    DataPtr // used in variable, list, and sent broadcast dropdowns
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -257,7 +265,7 @@ pub enum MonitorType {
     #[default]
     Normal,
     Big,
-    Slider(Type, f64, f64)
+    Slider(SB3Type, f64, f64)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -267,7 +275,7 @@ pub enum Node {
     NameProperty(String),
     IsStageProperty(bool),
     // visible, uid, name, type, value, monitor type
-    VariableData(bool, String, String, Type, String, MonitorType),
+    VariableData(bool, String, String, SB3Type, String, MonitorType),
     // visible, values
     ListData(bool, Vec<String>),
     // uid, name
@@ -294,7 +302,7 @@ pub enum Node {
     DataPtrData(String)
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum ParsingState {
     Root,
     Sprite,
@@ -304,8 +312,8 @@ enum ParsingState {
     BlockParent,
     BlockNext,
     BlockInKey,
-    BlockInType,
-    BlockInVal(Type),
+    BlockInType(String),
+    BlockInVal(String, SB3Type),
     BlockFieldKey,
     BlockFieldVal,
     BlockMut,
@@ -330,12 +338,22 @@ fn parse_token(
     root: &mut Node,
     state: &mut ParsingState
 ) -> Node {
-    let Node::Root(ref mut children) = *root else {
+    let Node::Root(ref mut root_data) = *root else {
         unreachable!()
     };
 
+    let mut sprite_data: Option<&mut Vec<Node>> = None;
+    let mut block_data: Option<&mut Vec<Node>> = None;
+
     match token {
         Token::SpriteHeader(name) => {
+            root_data.push(Node::Sprite(vec![]));
+            if let Node::Sprite(data) = root_data.last_mut().unwrap() {
+                sprite_data = Some(data);
+            } else {
+                unreachable!()
+            }
+
             parse_change_state(
                 state,
                 ParsingState::Root,
@@ -415,18 +433,45 @@ fn parse_token(
                 "Cannot use shadow outside of block scope"
             );
         },
+        Token::StringLit(data) => {
+            match state {
+                ParsingState::BlockInVal(name, val_type) => {
+                    if [
+                        SB3Type::String,
+                        SB3Type::BlockPtr,
+                        SB3Type::Substack,
+                        SB3Type::RecievedBroadcast,
+                        SB3Type::DataPtr
+                    ].contains(&val_type) {
+                        let value = match val_type {
+                            SB3Type::String => Node::StringData(data.clone()),
+                            SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
+                            SB3Type::Substack => Node::SubstackData(data.clone()),
+                            SB3Type::RecievedBroadcast => Node::ReceivedBroadcastData(data.clone()),
+                            SB3Type::DataPtr => Node::DataPtrData(data.clone()),
+                            _ => unreachable!()
+                        };
+
+                        if let Some(ref mut unwrapped_block_data) = block_data {
+                            unwrapped_block_data.push(Node::In(name.clone(), Box::new(value)));
+                        }
+                    }
+                }
+                _ => todo!()
+            }
+        }
         _ => {
-            if *state == ParsingState::BlockInType {
-                *state == ParsingState::BlockInVal(match token {
-                    Token::StringDecl => Type::String,
-                    Token::DoubleDecl => Type::Double,
-                    Token::IntDecl => Type::Int,
-                    Token::ListIdxDecl => Type::ListIdx,
-                    Token::WaitDecl => Type::Wait,
-                    Token::BlockPtrDecl => Type::BlockPtr,
-                    Token::SubstackDecl => Type::Substack,
-                    Token::ReceivedBroadcastDecl => Type::RecievedBroadcast,
-                    Token::DataPtrDecl => Type::DataPtr,
+            if let ParsingState::BlockInType(name) = state.clone() {
+                *state = ParsingState::BlockInVal(name, match token {
+                    Token::StringDecl => SB3Type::String,
+                    Token::DoubleDecl => SB3Type::Double,
+                    Token::IntDecl => SB3Type::Int,
+                    Token::ListIdxDecl => SB3Type::ListIdx,
+                    Token::WaitDecl => SB3Type::Wait,
+                    Token::BlockPtrDecl => SB3Type::BlockPtr,
+                    Token::SubstackDecl => SB3Type::Substack,
+                    Token::ReceivedBroadcastDecl => SB3Type::RecievedBroadcast,
+                    Token::DataPtrDecl => SB3Type::DataPtr,
                     _ => unreachable!()
                 });
             }
@@ -434,12 +479,4 @@ fn parse_token(
     }
 
     todo!("Finish parsing for single token")
-}
-
-pub fn parse(
-    tokens: &Vec<Token>
-) -> Node {
-    let mut root = Node::Root(Vec::new());
-
-    todo!("Add actual parsing")
 }
