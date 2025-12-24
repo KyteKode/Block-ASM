@@ -2,12 +2,23 @@
 .isStage true
 
 costume
-idx 1
-name blank
-data
+    name "blank"
+    path "blank.svg"
+    format "svg"
+    bitmap_res 2
+    center_x 240
+    center_y 180
+end
 
 [basm]
-.costume 1 "logo" "basm.svg"
+costume
+    name "logo"
+    path "basm.svg"
+    format "svg"
+    bitmap_res 1
+    center_x 25.292922973632812
+    center_y 19.340099334716797
+end
 
 block
     uid "0001"
@@ -15,7 +26,7 @@ block
     parent null
     next "0002"
     shadow false
-    topLevel true
+    top_level true
 end
 
 block
@@ -25,5 +36,5 @@ block
     next "null"
     in "MESSAGE" string "Hello, world!"
     shadow false
-    topLevel false
+    top_level false
 end
