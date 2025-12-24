@@ -293,7 +293,7 @@ pub enum Node {
     Field(String, String),
     NullData,
     StringData(String),
-    DoubleSata(f64),
+    DoubleData(f64),
     IntData(i64),
     ListIdxData(i64),
     WaitData(f64),
@@ -450,6 +450,58 @@ fn parse_token(
                             SB3Type::Substack => Node::SubstackData(data.clone()),
                             SB3Type::RecievedBroadcast => Node::ReceivedBroadcastData(data.clone()),
                             SB3Type::DataPtr => Node::DataPtrData(data.clone()),
+                            _ => unreachable!()
+                        };
+
+                        if let Some(ref mut unwrapped_block_data) = block_data {
+                            unwrapped_block_data.push(Node::In(name.clone(), Box::new(value)));
+                        }
+                    }
+                }
+                _ => todo!()
+            }
+        },
+        Token::NumLit(data) => {
+            match state {
+                ParsingState::BlockInVal(name, val_type) => {
+                    if [
+                        SB3Type::Double,
+                        SB3Type::Int,
+                        SB3Type::ListIdx,
+                        SB3Type::Wait,
+                    ].contains(&val_type) {
+                        let float_parsed = data.clone().parse::<f64>();
+                        let int_parsed = data.clone().parse::<i64>();
+
+                        let value = match val_type {
+                            SB3Type::Double => {
+                                if float_parsed.is_ok() {
+                                    Node::DoubleData(float_parsed.unwrap())
+                                } else {
+                                    throw_error(format!("Could not parse value {} as a float (double)", data))
+                                }
+                            },
+                            SB3Type::Int => {
+                                if int_parsed.is_ok() {
+                                    Node::IntData(int_parsed.unwrap())
+                                } else {
+                                    throw_error(format!("Could not parse value {} as an int (int)", data))
+                                }
+                            },
+                            SB3Type::ListIdx => {
+                                if int_parsed.is_ok() {
+                                    Node::ListIdxData(int_parsed.unwrap())
+                                } else {
+                                    throw_error(format!("Could not parse value {} as an int (list_idx)", data))
+                                }
+                            },
+                            SB3Type::Wait => {
+                                if float_parsed.is_ok() {
+                                    Node::WaitData(float_parsed.unwrap())
+                                } else {
+                                    throw_error(format!("Could not parse value {} as a float (double)", data))
+                                }
+                            },
                             _ => unreachable!()
                         };
 
