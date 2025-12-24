@@ -52,8 +52,10 @@ pub enum Token {
     Field,
     Mut,
     Shadow,
+
     XPos,
     YPos,
+
     StringDecl,
     DoubleDecl,
     IntDecl,
@@ -63,20 +65,29 @@ pub enum Token {
     SubstackDecl,
     ReceivedBroadcastDecl,
     DataPtrDecl,
+
     End,
+
     DataBlock,
     Name,
+
+    VarData,
+    IsCloud,
+    Mode,
+    SpriteName,
+    Value,
+    Width,
+    Height,
+    Visible,
+    SliderMin,
+    SliderMax,
+    IsDiscrete,
+
     NullLit,
     StringLit(String),
     NumLit(String),
     BoolLit(bool),
     IsStageProperty,
-    NameProperty,
-    VarData,
-    BigMonitorProperty,
-    SliderMonitorProperty,
-    VarGlobalScopeProperty,
-    VarCloudScopeProperty,
     ListData,
     ListGlobalScopeProperty,
     BroadcastProperty,
@@ -85,7 +96,8 @@ pub enum Token {
     BitmapCostumeAsset,
     SoundAsset,
     VolumeProperty,
-    SpriteHeader(String)
+    SpriteHeader(String),
+
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -109,8 +121,10 @@ fn tokenize_string(
         "field" => Token::Field,
         "mut" => Token::Mut,
         "shadow" => Token::Shadow,
+
         "x_pos" => Token::XPos,
         "y_pos" => Token::YPos,
+
         "string" => Token::StringDecl,
         "double" => Token::DoubleDecl,
         "int" => Token::IntDecl,
@@ -120,17 +134,26 @@ fn tokenize_string(
         "substack" => Token::SubstackDecl,
         "received_broadcast" => Token::ReceivedBroadcastDecl,
         "data_ptr" => Token::DataPtrDecl,
-        "end" => Token::End,
+
         "data_block" => Token::DataBlock,
         "name" => Token::Name,
+
+        "end" => Token::End,
+
+        "var" => Token::VarData,
+        "is_cloud" => Token::IsCloud,
+        "mode" => Token::Mode,
+        "sprite_name" => Token::SpriteName,
+        "value" => Token::Value,
+        "width" => Token::Width,
+        "height" => Token::Height,
+        "visible" => Token::Visible,
+        "slider_min" => Token::SliderMin,
+        "slider_max" => Token::SliderMax,
+        "is_discrete" => Token::IsDiscrete,
+
         "null" => Token::NullLit,
         ".isStage" => Token::IsStageProperty,
-        ".name" => Token::NameProperty,
-        ".var" => Token::VarData,
-        ".bigmonitor" => Token::BigMonitorProperty,
-        ".slidermonitor" => Token::SliderMonitorProperty,
-        ".varglobalscope" => Token::VarGlobalScopeProperty,
-        ".varcloudscope" => Token::VarCloudScopeProperty,
         ".list" => Token::ListData,
         ".listglobalscope" => Token::ListGlobalScopeProperty,
         ".broadcast" => Token::BroadcastProperty,
