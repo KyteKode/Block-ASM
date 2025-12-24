@@ -52,6 +52,7 @@ pub enum Token {
     Field,
     Mut,
     Shadow,
+    TopLevel,
 
     XPos,
     YPos,
@@ -60,7 +61,7 @@ pub enum Token {
     DoubleDecl,
     IntDecl,
     ListIdxDecl,
-    WaitDecl,
+    PosIntDecl,
     BlockPtrDecl,
     SubstackDecl,
     ReceivedBroadcastDecl,
@@ -121,6 +122,7 @@ fn tokenize_string(
         "field" => Token::Field,
         "mut" => Token::Mut,
         "shadow" => Token::Shadow,
+        "top_level" => Token::TopLevel,
 
         "x_pos" => Token::XPos,
         "y_pos" => Token::YPos,
@@ -129,7 +131,7 @@ fn tokenize_string(
         "double" => Token::DoubleDecl,
         "int" => Token::IntDecl,
         "list_idx" => Token::ListIdxDecl,
-        "wait" => Token::WaitDecl,
+        "pos_int" => Token::PosIntDecl,
         "block_ptr" => Token::BlockPtrDecl,
         "substack" => Token::SubstackDecl,
         "received_broadcast" => Token::ReceivedBroadcastDecl,
@@ -277,7 +279,7 @@ pub enum SB3Type {
     Double,
     Int,
     ListIdx,
-    Wait, // used in wait blocks
+    PosInt, // used in wait blocks
     BlockPtr, // used for shadow blocks and blocks inside blocks
     Substack, // used in boolean inputs and c blocks
     RecievedBroadcast,
@@ -319,7 +321,7 @@ pub enum Node {
     DoubleData(f64),
     IntData(i64),
     ListIdxData(i64),
-    WaitData(f64),
+    PosIntData(f64),
     BlockPtrData(String),
     SubstackData(String),
     ReceivedBroadcastData(String),
@@ -342,6 +344,7 @@ enum ParsingState {
     BlockFieldVal,
     BlockMut,
     BlockShadow,
+    BlockTopLevel,
 }
 
 fn parse_change_state(
@@ -457,6 +460,14 @@ fn parse_token(
                 "Cannot use shadow outside of block scope"
             );
         },
+        Token::TopLevel => {
+            parse_change_state(
+                state,
+                ParsingState::Block,
+                ParsingState::BlockTopLevel,
+                "Cannot use top_level outside of block scope"
+            );
+        },
         Token::StringLit(data) => {
             match state {
                 ParsingState::BlockInVal(name, val_type) => {
@@ -491,7 +502,7 @@ fn parse_token(
                         SB3Type::Double,
                         SB3Type::Int,
                         SB3Type::ListIdx,
-                        SB3Type::Wait,
+                        SB3Type::PosInt,
                     ].contains(&val_type) {
                         let float_parsed = data.clone().parse::<f64>();
                         let int_parsed = data.clone().parse::<i64>();
@@ -518,9 +529,9 @@ fn parse_token(
                                     throw_error(format!("Could not parse value {} as an int (list_idx)", data))
                                 }
                             },
-                            SB3Type::Wait => {
+                            SB3Type::PosInt => {
                                 if float_parsed.is_ok() {
-                                    Node::WaitData(float_parsed.unwrap())
+                                    Node::PosIntData(float_parsed.unwrap())
                                 } else {
                                     throw_error(format!("Could not parse value {} as a float (double)", data))
                                 }
@@ -543,7 +554,7 @@ fn parse_token(
                     Token::DoubleDecl => SB3Type::Double,
                     Token::IntDecl => SB3Type::Int,
                     Token::ListIdxDecl => SB3Type::ListIdx,
-                    Token::WaitDecl => SB3Type::Wait,
+                    Token::PosIntDecl => SB3Type::PosInt,
                     Token::BlockPtrDecl => SB3Type::BlockPtr,
                     Token::SubstackDecl => SB3Type::Substack,
                     Token::ReceivedBroadcastDecl => SB3Type::RecievedBroadcast,
