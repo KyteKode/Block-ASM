@@ -1,5 +1,5 @@
 [Stage]
-.is_stage true
+is_stage true
 
 costume
     name "blank"

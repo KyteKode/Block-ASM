@@ -84,21 +84,33 @@ pub enum Token {
     SliderMax,
     IsDiscrete,
 
+    Path,
+    Format,
+
+    Costume,
+    BitmapRes,
+    CenterX,
+    CenterY,
+
+    Sound,
+    Rate,
+    Samples,
+
+    Broadcast,
+
+    List,
+    Item,
+
     NullLit,
     StringLit(String),
     NumLit(String),
     BoolLit(bool),
-    IsStageProperty,
-    ListData,
-    ListGlobalScopeProperty,
-    BroadcastProperty,
-    CurrentCostumeProperty,
-    VectorCostumeAsset,
-    BitmapCostumeAsset,
-    SoundAsset,
-    VolumeProperty,
-    SpriteHeader(String),
 
+    IsStageProperty,
+    VolumeProperty,
+    LayerProperty,
+    
+    SpriteHeader(String),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -154,16 +166,29 @@ fn tokenize_string(
         "slider_max" => Token::SliderMax,
         "is_discrete" => Token::IsDiscrete,
 
+        "path" => Token::Path,
+        "format" => Token::Format,
+
+        "costume" => Token::Costume,
+        "bitmap_res" => Token::BitmapRes,
+        "center_x" => Token::CenterX,
+        "center_y" => Token::CenterY,
+
+        "sound" => Token::Sound,
+        "rate" => Token::Rate,
+        "sample" => Token::Samples,
+
+        "broadcast" => Token::Broadcast,
+
+        "list" => Token::List,
+        "item" => Token::Item,
+
         "null" => Token::NullLit,
-        ".isStage" => Token::IsStageProperty,
-        ".list" => Token::ListData,
-        ".listglobalscope" => Token::ListGlobalScopeProperty,
-        ".broadcast" => Token::BroadcastProperty,
-        ".currentCostume" => Token::CurrentCostumeProperty,
-        ".costumeVector" => Token::VectorCostumeAsset,
-        ".costumeBitmap" => Token::BitmapCostumeAsset,
-        ".sound" => Token::SoundAsset,
-        ".volume" => Token::VolumeProperty,
+
+        "is_stage" => Token::IsStageProperty,
+        "volume" => Token::VolumeProperty,
+        "layer" => Token::LayerProperty,
+
         misc => {
             let first = misc.chars().next();
             let last = misc.chars().last();
@@ -275,6 +300,8 @@ pub fn tokenize(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SB3Type {
+    Prototype,
+    Var,
     String,
     Double,
     Int,
@@ -297,26 +324,39 @@ pub enum MonitorType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Root(Vec<Node>),
-    Sprite(Vec<Node>),
+    
+    // name, blocks, is stage, volume, layer
+    Sprite(String, Vec<Node>, bool, f64, i64),
+
     NameProperty(String),
     IsStageProperty(bool),
+    VolumeProperty(f64),
+
     // visible, uid, name, type, value, monitor type
     VariableData(bool, String, String, SB3Type, String, MonitorType),
+
     // visible, values
     ListData(bool, Vec<String>),
+
     // uid, name
     BroadCastProperty(String, String),
-    // name, path to svg, x center, y center
-    CostumeVector(String, String, f64, f64),
-    // TODO: do bitmap costume and sound
-    VolumeProperty(f64),
+
+    // name, path to costume, format, bitmap resolution, x center, y center
+    Costume(String, String, String, f64, f64, f64),
+
+    // name, path to sound, format, sampling rate, sample count
+    Sound(String, String, String, f64, f64),
+
     Block(Vec<Node>),
     Uid(String),
     Parent(String),
     Next(String),
     In(String, Box<Node>),
-    Field(String, String),
+    Field(String, Vec<Node>),
+
     NullData,
+    PrototypeData(String),
+    VarData(String, String),
     StringData(String),
     DoubleData(f64),
     IntData(i64),
@@ -360,6 +400,13 @@ fn parse_change_state(
     }
 }
 
+struct SpriteReferences<'a> {
+    blocks: &'a mut Vec<Node>,
+    is_stage: &'a mut bool,
+    volume: &'a mut f64,
+    layer: &'a mut i64
+}
+
 fn parse_token(
     token: &Token,
     root: &mut Node,
@@ -368,15 +415,17 @@ fn parse_token(
     let Node::Root(ref mut root_data) = *root else {
         unreachable!()
     };
-
-    let mut sprite_data: Option<&mut Vec<Node>> = None;
+    
+    let mut sprite_data: Option<SpriteReferences> = None;
     let mut block_data: Option<&mut Vec<Node>> = None;
 
     match token {
         Token::SpriteHeader(name) => {
-            root_data.push(Node::Sprite(vec![]));
-            if let Node::Sprite(data) = root_data.last_mut().unwrap() {
-                sprite_data = Some(data);
+            root_data.push(Node::Sprite(name.clone(), vec![], false, 100.0, 1));
+            if let Node::Sprite(_, blocks, is_stage, volume, layer) = root_data.last_mut().unwrap() {
+                sprite_data = Some(SpriteReferences {
+                    blocks, is_stage, volume, layer
+                })
             } else {
                 unreachable!()
             }
