@@ -1,0 +1,231 @@
+[Stage]
+.is_stage true
+
+costume
+    name "blank"
+    path "blank.svg"
+    format "svg"
+    bitmap_res 2
+    center_x 240
+    center_y 180
+end
+
+var
+    uid "v_i"
+    name "i"
+    value 0
+end
+
+var
+    uid "v_said"
+    name "said"
+    value ""
+end
+
+
+
+
+
+[basm]
+costume
+    name "logo"
+    path "basm.svg"
+    format "svg"
+    bitmap_res 1
+    center_x 25.292922973632812
+    center_y 19.340099334716797
+end
+
+sound
+    name "pop"
+    path "pop.wab"
+    format "wav"
+    rate 48000
+    samples 1123
+end
+
+
+
+block
+    uid "01-0001"
+    opcode "event_whenflagclicked"
+    next "01-0002"
+    parent null
+    top_level true
+end
+
+block
+    uid "01-0002"
+    opcode "procedures_call"
+    next null
+    parent "01-0001"
+    in "text_in" string "Hello, world!"
+end
+
+
+
+block
+    uid "02-0001-01"
+    opcode "procedures_definition"
+    parent null
+    in "custom_block" prototype "02-0001-02"
+    top_level true
+end
+
+block
+    uid "02-0001-02"
+    opcode "procedures_prototype"
+    next null
+    parent "02-0001-01"
+    in "text_in" prototype "02-0001-03"
+    shadow true
+    mut "tagName" "mutation"
+    mut "proccode" "Say %s"
+    mut "argumentids" "[\"text_in\"]"
+    mut "argumentnames" "[\"text\"]"
+    mut "argumentdefaults" "[\"Hello, world!\"]
+    mut "warp" false
+end
+
+block
+    uid "02-0001-03"
+    opcode "argument_reporter_string_number"
+    next null
+    parent "02-0001-02"
+    field "VALUE" "text" null ;
+    shadow true
+end
+
+block
+    uid "02-0002"
+    opcode "data_setvariableto"
+    next "02-0003"
+    parent "02-0001-01"
+    in "VALUE" string "0"
+    field "VARIABLE" "i" "v_i" ;
+end
+
+block
+    uid "02-0003"
+    opcode "data_setvariableto"
+    next "02-0004-01"
+    parent "02-0002"
+    in "VALUE" string ""
+    field "VARIABLE" "said" "v_said" ;
+end
+
+block
+    uid "02-0004-01"
+    opcode "control_repeat"
+    next "02-0010"
+    parent "02-0003"
+    in "TIMES" block_ptr "02-0004-02"
+    in "SUBSTACK" substack "02-0005"
+end
+
+block
+    uid "02-0004-02"
+    opcode "operator_length"
+    next null
+    parent "02-0004-01"
+    in "STRING" block_ptr "02-0004-03"
+end
+
+block
+    uid "02-0004-03"
+    opcode "argument_reporter_string_number"
+    next null
+    parent "02-0004-02"
+    field "VALUE" "text" null ;
+end
+
+block
+    uid "02-2005"
+    opcode "data_changevariableby"
+    next "02-2006-01"
+    parent "02-2004-01"
+    in "VALUE" double 1
+    field "VARIABLE" "i" "v_i" ;
+end
+
+block
+    uid "02-0006-01"
+    opcode "data_setvariableto"
+    next "02-0007"
+    parent "02-0005"
+    in "VALUE" block_ptr "02-0007-02"
+    field "VARIABLE" "said" "v_said" ;
+end
+
+block
+    uid "02-0006-02"
+    opcode "operator_join"
+    next null
+    parent "02-0006-01"
+    in "STRING1" variable "said" "v_said"
+    in "STRING2" block_ptr "02-0006-03"
+end
+
+block
+    uid "02-0006-03"
+    opcode "operator_letter_of"
+    next null
+    parent "02-0006-02"
+    in "LETTER" variable "i" "v_i"
+    in "STRING" block_ptr "02-0006-04"
+end
+
+block
+    uid "02-0006-04"
+    opcode "argument_reporter_string_number"
+    next null
+    parent "02-0006-03"
+    field "VALUE" "text" null ;
+end
+
+block
+    uid "02-0007"
+    opcode "looks_say"
+    next "02-0008-01"
+    parent "02-0006-01"
+    in "MESSAGE" variable "said" "v_said"
+end
+
+block
+    uid "02-0008-01"
+    opcode "sound_play"
+    next "02-0009"
+    parent "02-0007"
+    in "SOUND_MENU" menu "02-0008-02"
+end
+
+block
+    uid "02-0008-02"
+    opcode "sound_sounds_menu"
+    parent "02-0008-01"
+    field "SOUND_MENU" "pop" null ;
+end
+
+block
+    uid "02-0009"
+    opcode "control_wait"
+    next null
+    parent "02-0008-01"
+    in "DURATION" pos_int "0.03"
+end
+
+block
+    uid "02-0010"
+    opcode "control_wait"
+    next "02-0011"
+    parent "02-0004-01"
+    in "DURATION" pos_int "1.97"
+end
+
+block
+    uid "02-0011"
+    opcode "looks_say"
+    next null
+    parent "02-0010"
+    in "MESSAGE" string ""
+end
