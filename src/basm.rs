@@ -109,7 +109,7 @@ pub enum Token {
     IsStageProperty,
     VolumeProperty,
     LayerProperty,
-    
+
     SpriteHeader(String),
 }
 
@@ -301,16 +301,18 @@ pub fn tokenize(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SB3Type {
     Prototype,
-    Var,
-    String,
-    Double,
-    Int,
-    ListIdx,
-    PosInt, // used in wait blocks
     BlockPtr, // used for shadow blocks and blocks inside blocks
     Substack, // used in boolean inputs and c blocks
-    RecievedBroadcast,
-    DataPtr // used in variable, list, and sent broadcast dropdowns
+    Double,
+    PosDouble,
+    PosInt,
+    Int,
+    Angle,
+    Color,
+    String,
+    Broadcast,
+    Var,
+    List
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -324,7 +326,7 @@ pub enum MonitorType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Root(Vec<Node>),
-    
+
     // name, blocks, is stage, volume, layer
     Sprite(String, Vec<Node>, bool, f64, i64),
 
@@ -333,7 +335,7 @@ pub enum Node {
     VolumeProperty(f64),
 
     // visible, uid, name, type, value, monitor type
-    VariableData(bool, String, String, SB3Type, String, MonitorType),
+    VarData(bool, String, String, SB3Type, String, MonitorType),
 
     // visible, values
     ListData(bool, Vec<String>),
@@ -347,7 +349,8 @@ pub enum Node {
     // name, path to sound, format, sampling rate, sample count
     Sound(String, String, String, f64, f64),
 
-    Block(Vec<Node>),
+    // data, x, y
+    Block(Vec<Node>, f64, f64),
     Uid(String),
     Parent(String),
     Next(String),
@@ -356,16 +359,18 @@ pub enum Node {
 
     NullData,
     PrototypeData(String),
-    VarData(String, String),
-    StringData(String),
-    DoubleData(f64),
-    IntData(i64),
-    ListIdxData(i64),
-    PosIntData(f64),
     BlockPtrData(String),
     SubstackData(String),
-    ReceivedBroadcastData(String),
-    DataPtrData(String)
+    DoubleData(String),
+    PosDoubleData(String),
+    PosIntData(String),
+    IntData(String),
+    AngleData(String),
+    ColorData(String),
+    StringData(String),
+    BroadcastData(String, String),
+    VarInData(String, String),
+    ListInData(String, String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -380,6 +385,7 @@ enum ParsingState {
     BlockInKey,
     BlockInType(String),
     BlockInVal(String, SB3Type),
+    BlockInDataUid(String, String),
     BlockFieldKey,
     BlockFieldVal,
     BlockMut,
@@ -407,6 +413,12 @@ struct SpriteReferences<'a> {
     layer: &'a mut i64
 }
 
+struct BlockReferences<'a> {
+    data: &'a mut Vec<Node>,
+    x: &'a mut f64,
+    y: &'a mut f64,
+}
+
 fn parse_token(
     token: &Token,
     root: &mut Node,
@@ -415,9 +427,9 @@ fn parse_token(
     let Node::Root(ref mut root_data) = *root else {
         unreachable!()
     };
-    
+
     let mut sprite_data: Option<SpriteReferences> = None;
-    let mut block_data: Option<&mut Vec<Node>> = None;
+    let mut block_data: Option<BlockReferences> = None;
 
     match token {
         Token::SpriteHeader(name) => {
@@ -438,12 +450,14 @@ fn parse_token(
             );
         },
         Token::Block => {
-            parse_change_state(
-                state,
-                ParsingState::Sprite,
-                ParsingState::Block,
-                "Cannot use block outside of sprite scope"
-            );
+            if let Some(unwrapped) = sprite_data {
+                if *state == ParsingState::Sprite {
+                    *state = ParsingState::Block;
+                    unwrapped.blocks.push(Node::Block(vec![], 0.0, 0.0));
+                } else {
+                    throw_error("Cannot use block outside of sprite scope".to_string());
+                }
+            }
         },
         Token::Uid => {
             parse_change_state(
@@ -516,10 +530,11 @@ fn parse_token(
                 ParsingState::BlockTopLevel,
                 "Cannot use top_level outside of block scope"
             );
-        },
-        Token::StringLit(data) => {
+        }
+        /*Token::StringLit(data) => {
             match state {
                 ParsingState::BlockInVal(name, val_type) => {
+                    if val_type == SB3Type::Var,
                     if [
                         SB3Type::String,
                         SB3Type::BlockPtr,
@@ -536,66 +551,14 @@ fn parse_token(
                             _ => unreachable!()
                         };
 
-                        if let Some(ref mut unwrapped_block_data) = block_data {
-                            unwrapped_block_data.push(Node::In(name.clone(), Box::new(value)));
+                        if let Some(unwrapped) = block_data {
+                            unwrapped.data.push(Node::In(name.clone(), Box::new(value)));
                         }
                     }
                 }
                 _ => todo!()
             }
         },
-        Token::NumLit(data) => {
-            match state {
-                ParsingState::BlockInVal(name, val_type) => {
-                    if [
-                        SB3Type::Double,
-                        SB3Type::Int,
-                        SB3Type::ListIdx,
-                        SB3Type::PosInt,
-                    ].contains(&val_type) {
-                        let float_parsed = data.clone().parse::<f64>();
-                        let int_parsed = data.clone().parse::<i64>();
-
-                        let value = match val_type {
-                            SB3Type::Double => {
-                                if float_parsed.is_ok() {
-                                    Node::DoubleData(float_parsed.unwrap())
-                                } else {
-                                    throw_error(format!("Could not parse value {} as a float (double)", data))
-                                }
-                            },
-                            SB3Type::Int => {
-                                if int_parsed.is_ok() {
-                                    Node::IntData(int_parsed.unwrap())
-                                } else {
-                                    throw_error(format!("Could not parse value {} as an int (int)", data))
-                                }
-                            },
-                            SB3Type::ListIdx => {
-                                if int_parsed.is_ok() {
-                                    Node::ListIdxData(int_parsed.unwrap())
-                                } else {
-                                    throw_error(format!("Could not parse value {} as an int (list_idx)", data))
-                                }
-                            },
-                            SB3Type::PosInt => {
-                                if float_parsed.is_ok() {
-                                    Node::PosIntData(float_parsed.unwrap())
-                                } else {
-                                    throw_error(format!("Could not parse value {} as a float (double)", data))
-                                }
-                            },
-                            _ => unreachable!()
-                        };
-
-                        if let Some(ref mut unwrapped_block_data) = block_data {
-                            unwrapped_block_data.push(Node::In(name.clone(), Box::new(value)));
-                        }
-                    }
-                }
-                _ => todo!()
-            }
-        }
         _ => {
             if let ParsingState::BlockInType(name) = state.clone() {
                 *state = ParsingState::BlockInVal(name, match token {
@@ -611,7 +574,7 @@ fn parse_token(
                     _ => unreachable!()
                 });
             }
-        }
+        }*/
     }
 
     todo!("Finish parsing for single token")

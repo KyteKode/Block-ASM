@@ -211,7 +211,7 @@ block
     opcode "control_wait"
     next null
     parent "02-0008-01"
-    in "DURATION" pos_int "0.03"
+    in "DURATION" pos_double "0.03"
 end
 
 block
@@ -219,7 +219,7 @@ block
     opcode "control_wait"
     next "02-0011"
     parent "02-0004-01"
-    in "DURATION" pos_int "1.97"
+    in "DURATION" pos_double "1.97"
 end
 
 block
