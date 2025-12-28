@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use crate::errors::maybe_unreachable;
 use crate::errors::throw_error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -397,7 +398,9 @@ enum ParsingState {
     BlockInKey,
     BlockInType(String),
     BlockInVal(String, SB3Type),
-    BlockInDataUid(String, String),
+    BlockInBroadcastName(String, String),
+    BlockInVarVal(String, String),
+    BlockInListVal(String, String, Vec<String>),
     BlockFieldKey,
     BlockFieldVal,
     BlockMut,
@@ -543,6 +546,29 @@ fn parse_token(token: &Token, root: &mut Node, state: &mut ParsingState) -> Node
                 "Cannot use top_level outside of block scope",
             );
         }
+        Token::StringLit(data) => {
+            if let ParsingState::BlockInVal(name, sb3_type) = state.clone() {
+                if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(&sb3_type) {
+                    *state = ParsingState::BlockInBroadcastName(name, data.clone());
+                } else {
+                    if let Some(ref mut unwrapped) = block_data {
+                        unwrapped.data.push(match sb3_type {
+                            SB3Type::Prototype => Node::PrototypeData(data.clone()),
+                            SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
+                            SB3Type::Substack => Node::SubstackData(data.clone()),
+                            SB3Type::Double => Node::DoubleData(data.clone()),
+                            SB3Type::PosDouble => Node::PosDoubleData(data.clone()),
+                            SB3Type::PosInt => Node::PosIntData(data.clone()),
+                            SB3Type::Int => Node::IntData(data.clone()),
+                            SB3Type::Angle => Node::AngleData(data.clone()),
+                            SB3Type::Color => Node::ColorData(data.clone()),
+                            SB3Type::String => Node::StringData(data.clone()),
+                            _ => maybe_unreachable!(),
+                        })
+                    }
+                }
+            }
+        }
         _ => {
             if let ParsingState::BlockInType(name) = state.clone() {
                 *state = ParsingState::BlockInVal(
@@ -561,54 +587,11 @@ fn parse_token(token: &Token, root: &mut Node, state: &mut ParsingState) -> Node
                         Token::BroadcastAnnotation => SB3Type::Broadcast,
                         Token::VarAnnotation => SB3Type::Var,
                         Token::ListAnnotation => SB3Type::List,
-                        _ => unreachable!(), //maybe unreachable idk
+                        _ => throw_error("Must use type as second argument of input".to_string()),
                     },
                 )
             }
-        } /*Token::StringLit(data) => {
-              match state {
-                  ParsingState::BlockInVal(name, val_type) => {
-                      if val_type == SB3Type::Var,
-                      if [
-                          SB3Type::String,
-                          SB3Type::BlockPtr,
-                          SB3Type::Substack,
-                          SB3Type::RecievedBroadcast,
-                          SB3Type::DataPtr
-                      ].contains(&val_type) {
-                          let value = match val_type {
-                              SB3Type::String => Node::StringData(data.clone()),
-                              SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
-                              SB3Type::Substack => Node::SubstackData(data.clone()),
-                              SB3Type::RecievedBroadcast => Node::ReceivedBroadcastData(data.clone()),
-                              SB3Type::DataPtr => Node::DataPtrData(data.clone()),
-                              _ => unreachable!()
-                          };
-
-                          if let Some(unwrapped) = block_data {
-                              unwrapped.data.push(Node::In(name.clone(), Box::new(value)));
-                          }
-                      }
-                  }
-                  _ => todo!()
-              }
-          },
-          _ => {
-              if let ParsingState::BlockInType(name) = state.clone() {
-                  *state = ParsingState::BlockInVal(name, match token {
-                      Token::StringDecl => SB3Type::String,
-                      Token::DoubleDecl => SB3Type::Double,
-                      Token::IntDecl => SB3Type::Int,
-                      Token::ListIdxDecl => SB3Type::ListIdx,
-                      Token::PosIntDecl => SB3Type::PosInt,
-                      Token::BlockPtrDecl => SB3Type::BlockPtr,
-                      Token::SubstackDecl => SB3Type::Substack,
-                      Token::ReceivedBroadcastDecl => SB3Type::RecievedBroadcast,
-                      Token::DataPtrDecl => SB3Type::DataPtr,
-                      _ => unreachable!()
-                  });
-              }
-          }*/
+        }
     }
 
     todo!("Finish parsing for single token")

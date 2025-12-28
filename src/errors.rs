@@ -5,11 +5,23 @@ use std::process;
 
 use colored::Colorize;
 
-pub fn throw_error(msg: String) -> ! {
+#[macro_export]
+macro_rules! maybe_unreachable {
+    () => {
+        unreachable!(
+            "Supposedly unreachable code at {}:{} is reachable",
+            file!(),
+            line!()
+        )
+    };
+}
+pub(crate) use maybe_unreachable;
+
+pub(crate) fn throw_error(msg: String) -> ! {
     eprintln!("{}", format!("Error: {}", msg).red());
     process::exit(1);
 }
 
-pub fn throw_warning(msg: &str) {
+pub(crate) fn throw_warning(msg: &str) {
     eprintln!("{}", format!("Warning: {}", msg).yellow());
 }
