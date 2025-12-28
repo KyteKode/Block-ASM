@@ -37,9 +37,8 @@ pub struct CompilationData {
     pub warn: HashSet<WarningType>,
     pub no_warn: HashSet<WarningType>,
     pub wall: bool,
-    pub werror: bool
+    pub werror: bool,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
@@ -57,15 +56,19 @@ pub enum Token {
     XPos,
     YPos,
 
-    StringDecl,
-    DoubleDecl,
-    IntDecl,
-    ListIdxDecl,
-    PosIntDecl,
-    BlockPtrDecl,
-    SubstackDecl,
-    ReceivedBroadcastDecl,
-    DataPtrDecl,
+    PrototypeAnnotation,
+    BlockPtrAnnotation,
+    SubstackAnnotation,
+    DoubleAnnotation,
+    IntAnnotation,
+    PosIntAnnotation,
+    PosDoubleAnnotation,
+    AngleAnnotation,
+    ColorAnnotation,
+    StringAnnotation,
+    BroadcastAnnotation,
+    VarAnnotation,
+    ListAnnotation,
 
     End,
 
@@ -117,13 +120,11 @@ pub enum Token {
 enum TokenizationMode {
     Normal,
     String,
-    SpriteHeader
+    SpriteHeader,
 }
 
 #[allow(clippy::needless_return)]
-fn tokenize_string(
-    s_token: String
-) -> Token {
+fn tokenize_string(s_token: String) -> Token {
     return match &*s_token {
         "block" => Token::Block,
         "uid" => Token::Uid,
@@ -139,15 +140,16 @@ fn tokenize_string(
         "x_pos" => Token::XPos,
         "y_pos" => Token::YPos,
 
-        "string" => Token::StringDecl,
-        "double" => Token::DoubleDecl,
-        "int" => Token::IntDecl,
-        "list_idx" => Token::ListIdxDecl,
-        "pos_int" => Token::PosIntDecl,
-        "block_ptr" => Token::BlockPtrDecl,
-        "substack" => Token::SubstackDecl,
-        "received_broadcast" => Token::ReceivedBroadcastDecl,
-        "data_ptr" => Token::DataPtrDecl,
+        "prototype" => Token::PrototypeAnnotation,
+        "block_ptr" => Token::BlockPtrAnnotation,
+        "substack" => Token::SubstackAnnotation,
+        "double" => Token::DoubleAnnotation,
+        "pos_double" => Token::PosDoubleAnnotation,
+        "pos_int" => Token::PosIntAnnotation,
+        "int" => Token::IntAnnotation,
+        "broadcast" => Token::BroadcastAnnotation,
+        "variable" => Token::VarAnnotation,
+        "list" => Token::ListAnnotation,
 
         "data_block" => Token::DataBlock,
         "name" => Token::Name,
@@ -196,11 +198,11 @@ fn tokenize_string(
             if let (Some(ufirst), Some(ulast)) = (first, last) {
                 if ufirst == '"' && ulast == '"' {
                     let chars: Vec<char> = misc.chars().collect();
-                    let result: String = chars[1..chars.len()-1].iter().collect();
+                    let result: String = chars[1..chars.len() - 1].iter().collect();
                     return Token::StringLit(result);
                 } else if ufirst == '[' && ulast == ']' {
                     let chars: Vec<char> = misc.chars().collect();
-                    let result: String = chars[1..chars.len()-1].iter().collect();
+                    let result: String = chars[1..chars.len() - 1].iter().collect();
                     return Token::SpriteHeader(result);
                 } else if misc == "true" || misc == "false" {
                     return Token::BoolLit(misc == "true");
@@ -208,7 +210,9 @@ fn tokenize_string(
                     let parsed = misc.parse::<f64>();
                     match parsed {
                         Ok(_) => Token::NumLit(misc.to_string()),
-                        Err(_) => throw_error(format!("{} is not a keyword, string, or number", misc))
+                        Err(_) => {
+                            throw_error(format!("{} is not a keyword, string, or number", misc))
+                        }
                     }
                 }
             } else {
@@ -218,9 +222,7 @@ fn tokenize_string(
     };
 }
 
-pub fn tokenize(
-    basm_code: &str
-) -> Vec<Token> {
+pub fn tokenize(basm_code: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
 
     let chars = basm_code.chars().collect::<Vec<_>>();
@@ -234,7 +236,9 @@ pub fn tokenize(
     let mut line = 1;
 
     for (idx, ch) in chars_iter.enumerate() {
-        if ch == &'\n' { line += 1; }
+        if ch == &'\n' {
+            line += 1;
+        }
 
         // Handles string literals
         if ch == &'"' {
@@ -242,14 +246,14 @@ pub fn tokenize(
                 TokenizationMode::Normal => {
                     string_start = line;
                     mode = TokenizationMode::String;
-                },
+                }
                 TokenizationMode::String => {
                     if chars[idx] == '\\' {
                         s_token.push('"');
                         mode = TokenizationMode::String;
                     }
                     mode = TokenizationMode::Normal;
-                },
+                }
                 TokenizationMode::SpriteHeader => {
                     s_token.push('"');
                     mode = TokenizationMode::SpriteHeader;
@@ -263,7 +267,7 @@ pub fn tokenize(
             mode = match mode {
                 TokenizationMode::Normal => TokenizationMode::SpriteHeader,
                 TokenizationMode::String => TokenizationMode::String,
-                TokenizationMode::SpriteHeader => TokenizationMode::SpriteHeader
+                TokenizationMode::SpriteHeader => TokenizationMode::SpriteHeader,
             }
         }
 
@@ -271,9 +275,12 @@ pub fn tokenize(
         if ch == &']' {
             s_token.push(']');
             mode = match mode {
-                TokenizationMode::Normal => throw_error(format!("Line {}: Cannot close sprite header without opening it", line)),
+                TokenizationMode::Normal => throw_error(format!(
+                    "Line {}: Cannot close sprite header without opening it",
+                    line
+                )),
                 TokenizationMode::String => TokenizationMode::String,
-                TokenizationMode::SpriteHeader => TokenizationMode::Normal
+                TokenizationMode::SpriteHeader => TokenizationMode::Normal,
             }
         }
 
@@ -284,19 +291,24 @@ pub fn tokenize(
             }
             s_token = String::new();
         } else if ch == &'\n' && mode == TokenizationMode::SpriteHeader {
-            throw_error(format!("Line {}: Cannot use newline in sprite header", line));
+            throw_error(format!(
+                "Line {}: Cannot use newline in sprite header",
+                line
+            ));
         } else {
             s_token.push(*ch);
         }
     }
 
-    if mode == TokenizationMode::String { throw_error(format!("Unterminated string on line {}", string_start.to_string())); }
+    if mode == TokenizationMode::String {
+        throw_error(format!(
+            "Unterminated string on line {}",
+            string_start.to_string()
+        ));
+    }
 
     tokens
 }
-
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SB3Type {
@@ -312,7 +324,7 @@ pub enum SB3Type {
     String,
     Broadcast,
     Var,
-    List
+    List,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -320,7 +332,7 @@ pub enum MonitorType {
     #[default]
     Normal,
     Big,
-    Slider(SB3Type, f64, f64)
+    Slider(SB3Type, f64, f64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -397,7 +409,7 @@ fn parse_change_state(
     state: &mut ParsingState,
     checked_state: ParsingState,
     result_state: ParsingState,
-    error: &str
+    error: &str,
 ) {
     if *state == checked_state {
         *state = result_state;
@@ -410,7 +422,7 @@ struct SpriteReferences<'a> {
     blocks: &'a mut Vec<Node>,
     is_stage: &'a mut bool,
     volume: &'a mut f64,
-    layer: &'a mut i64
+    layer: &'a mut i64,
 }
 
 struct BlockReferences<'a> {
@@ -419,11 +431,7 @@ struct BlockReferences<'a> {
     y: &'a mut f64,
 }
 
-fn parse_token(
-    token: &Token,
-    root: &mut Node,
-    state: &mut ParsingState
-) -> Node {
+fn parse_token(token: &Token, root: &mut Node, state: &mut ParsingState) -> Node {
     let Node::Root(ref mut root_data) = *root else {
         unreachable!()
     };
@@ -434,9 +442,13 @@ fn parse_token(
     match token {
         Token::SpriteHeader(name) => {
             root_data.push(Node::Sprite(name.clone(), vec![], false, 100.0, 1));
-            if let Node::Sprite(_, blocks, is_stage, volume, layer) = root_data.last_mut().unwrap() {
+            if let Node::Sprite(_, blocks, is_stage, volume, layer) = root_data.last_mut().unwrap()
+            {
                 sprite_data = Some(SpriteReferences {
-                    blocks, is_stage, volume, layer
+                    blocks,
+                    is_stage,
+                    volume,
+                    layer,
                 })
             } else {
                 unreachable!()
@@ -446,9 +458,9 @@ fn parse_token(
                 state,
                 ParsingState::Root,
                 ParsingState::Sprite,
-                "Cannot use sprite header outside of global scope"
+                "Cannot use sprite header outside of global scope",
             );
-        },
+        }
         Token::Block => {
             if let Some(unwrapped) = sprite_data {
                 if *state == ParsingState::Sprite {
@@ -458,123 +470,145 @@ fn parse_token(
                     throw_error("Cannot use block outside of sprite scope".to_string());
                 }
             }
-        },
+        }
         Token::Uid => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockUid,
-                "Cannot use uid outside of block scope"
+                "Cannot use uid outside of block scope",
             );
-        },
+        }
         Token::Opcode => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockOpcode,
-                "Cannot use opcode outside of block scope"
+                "Cannot use opcode outside of block scope",
             );
-        },
+        }
         Token::Parent => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockParent,
-                "Cannot use parent outside of block scope"
+                "Cannot use parent outside of block scope",
             );
-        },
+        }
         Token::Next => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockNext,
-                "Cannot use next outside of block scope"
+                "Cannot use next outside of block scope",
             );
-        },
+        }
         Token::In => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockInKey,
-                "Cannot use in outside of block scope"
+                "Cannot use in outside of block scope",
             );
-        },
+        }
         Token::Field => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockFieldKey,
-                "Cannot use field outside of block scope"
+                "Cannot use field outside of block scope",
             );
-        },
+        }
         Token::Mut => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockMut,
-                "Cannot use mut outside of block scope"
+                "Cannot use mut outside of block scope",
             );
-        },
+        }
         Token::Shadow => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockShadow,
-                "Cannot use shadow outside of block scope"
+                "Cannot use shadow outside of block scope",
             );
-        },
+        }
         Token::TopLevel => {
             parse_change_state(
                 state,
                 ParsingState::Block,
                 ParsingState::BlockTopLevel,
-                "Cannot use top_level outside of block scope"
+                "Cannot use top_level outside of block scope",
             );
         }
-        /*Token::StringLit(data) => {
-            match state {
-                ParsingState::BlockInVal(name, val_type) => {
-                    if val_type == SB3Type::Var,
-                    if [
-                        SB3Type::String,
-                        SB3Type::BlockPtr,
-                        SB3Type::Substack,
-                        SB3Type::RecievedBroadcast,
-                        SB3Type::DataPtr
-                    ].contains(&val_type) {
-                        let value = match val_type {
-                            SB3Type::String => Node::StringData(data.clone()),
-                            SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
-                            SB3Type::Substack => Node::SubstackData(data.clone()),
-                            SB3Type::RecievedBroadcast => Node::ReceivedBroadcastData(data.clone()),
-                            SB3Type::DataPtr => Node::DataPtrData(data.clone()),
-                            _ => unreachable!()
-                        };
-
-                        if let Some(unwrapped) = block_data {
-                            unwrapped.data.push(Node::In(name.clone(), Box::new(value)));
-                        }
-                    }
-                }
-                _ => todo!()
-            }
-        },
         _ => {
             if let ParsingState::BlockInType(name) = state.clone() {
-                *state = ParsingState::BlockInVal(name, match token {
-                    Token::StringDecl => SB3Type::String,
-                    Token::DoubleDecl => SB3Type::Double,
-                    Token::IntDecl => SB3Type::Int,
-                    Token::ListIdxDecl => SB3Type::ListIdx,
-                    Token::PosIntDecl => SB3Type::PosInt,
-                    Token::BlockPtrDecl => SB3Type::BlockPtr,
-                    Token::SubstackDecl => SB3Type::Substack,
-                    Token::ReceivedBroadcastDecl => SB3Type::RecievedBroadcast,
-                    Token::DataPtrDecl => SB3Type::DataPtr,
-                    _ => unreachable!()
-                });
+                *state = ParsingState::BlockInVal(
+                    name,
+                    match token {
+                        Token::PrototypeAnnotation => SB3Type::Prototype,
+                        Token::BlockPtrAnnotation => SB3Type::BlockPtr,
+                        Token::SubstackAnnotation => SB3Type::Substack,
+                        Token::DoubleAnnotation => SB3Type::Double,
+                        Token::PosDoubleAnnotation => SB3Type::PosDouble,
+                        Token::PosIntAnnotation => SB3Type::PosInt,
+                        Token::IntAnnotation => SB3Type::Int,
+                        Token::AngleAnnotation => SB3Type::Angle,
+                        Token::ColorAnnotation => SB3Type::Color,
+                        Token::StringAnnotation => SB3Type::String,
+                        Token::BroadcastAnnotation => SB3Type::Broadcast,
+                        Token::VarAnnotation => SB3Type::Var,
+                        Token::ListAnnotation => SB3Type::List,
+                        _ => unreachable!(), //maybe unreachable idk
+                    },
+                )
             }
-        }*/
+        } /*Token::StringLit(data) => {
+              match state {
+                  ParsingState::BlockInVal(name, val_type) => {
+                      if val_type == SB3Type::Var,
+                      if [
+                          SB3Type::String,
+                          SB3Type::BlockPtr,
+                          SB3Type::Substack,
+                          SB3Type::RecievedBroadcast,
+                          SB3Type::DataPtr
+                      ].contains(&val_type) {
+                          let value = match val_type {
+                              SB3Type::String => Node::StringData(data.clone()),
+                              SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
+                              SB3Type::Substack => Node::SubstackData(data.clone()),
+                              SB3Type::RecievedBroadcast => Node::ReceivedBroadcastData(data.clone()),
+                              SB3Type::DataPtr => Node::DataPtrData(data.clone()),
+                              _ => unreachable!()
+                          };
+
+                          if let Some(unwrapped) = block_data {
+                              unwrapped.data.push(Node::In(name.clone(), Box::new(value)));
+                          }
+                      }
+                  }
+                  _ => todo!()
+              }
+          },
+          _ => {
+              if let ParsingState::BlockInType(name) = state.clone() {
+                  *state = ParsingState::BlockInVal(name, match token {
+                      Token::StringDecl => SB3Type::String,
+                      Token::DoubleDecl => SB3Type::Double,
+                      Token::IntDecl => SB3Type::Int,
+                      Token::ListIdxDecl => SB3Type::ListIdx,
+                      Token::PosIntDecl => SB3Type::PosInt,
+                      Token::BlockPtrDecl => SB3Type::BlockPtr,
+                      Token::SubstackDecl => SB3Type::Substack,
+                      Token::ReceivedBroadcastDecl => SB3Type::RecievedBroadcast,
+                      Token::DataPtrDecl => SB3Type::DataPtr,
+                      _ => unreachable!()
+                  });
+              }
+          }*/
     }
 
     todo!("Finish parsing for single token")

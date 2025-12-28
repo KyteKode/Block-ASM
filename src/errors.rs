@@ -6,16 +6,10 @@ use std::process;
 use colored::Colorize;
 
 pub fn throw_error(msg: String) -> ! {
-    eprintln!(
-        "{}",
-        format!("Error: {}", msg).red()
-    );
+    eprintln!("{}", format!("Error: {}", msg).red());
     process::exit(1);
 }
 
 pub fn throw_warning(msg: &str) {
-    eprintln!(
-        "{}",
-        format!("Warning: {}", msg).yellow()
-    );
+    eprintln!("{}", format!("Warning: {}", msg).yellow());
 }
