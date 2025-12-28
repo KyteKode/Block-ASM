@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2025 KyteKode
 
-mod basm;
-mod errors;
+mod compile;
 
 use std::env;
 use std::fs;
 
-use errors::*;
+use compile::errors::{throw_error, throw_warning};
 
-use basm::CompilationData;
+use compile::CompilationData;
 
 fn use_bit(bitfield: &mut u32, pos: u32) {
     *bitfield |= 1u32 << pos;
@@ -46,7 +45,7 @@ fn main() {
 
     let warnings;
     {
-        use basm::WarningType::*;
+        use compile::WarningType::*;
 
         warnings = [
             (Op, "-Wop", "-Wno-op"),
@@ -104,4 +103,6 @@ fn main() {
             }
         };
     }
+
+    compile::compile(&data);
 }

@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "block-asm"
+name = "block_asm"
 version = "0.1.0"
 dependencies = [
  "colored",
