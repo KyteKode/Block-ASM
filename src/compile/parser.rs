@@ -1,3 +1,5 @@
+use std::f32::consts::E;
+
 use super::lexer::Token;
 
 use super::errors::*;
@@ -91,7 +93,7 @@ enum ParsingState {
     BlockInVal(String, SB3Type),
     BlockInBroadcastName(String, String),
     BlockInVarVal(String, String),
-    BlockInListVal(String, String, Vec<String>),
+    BlockInListVal(String, String),
     BlockFieldKey,
     BlockFieldVal,
     BlockMut,
@@ -125,24 +127,27 @@ struct BlockReferences<'a> {
     y: &'a mut f64,
 }
 
-fn parse_token(token: &Token, root: &mut Node, state: &mut ParsingState) -> Node {
-    let Node::Root(ref mut root_data) = *root else {
-        unreachable!()
-    };
+struct ParseData<'a> {
+    root_data: &'a mut Vec<Node>,
+    sprite_data: Option<SpriteReferences<'a>>,
+    block_data: Option<BlockReferences<'a>>,
+}
 
-    let mut sprite_data: Option<SpriteReferences> = None;
-    let mut block_data: Option<BlockReferences> = None;
+fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut ParsingState) -> Node {
+    let root_data = &mut data.root_data;
+    let mut sprite_data = &mut data.sprite_data;
+    let mut block_data = &mut data.block_data;
 
     match token {
         Token::SpriteHeader(name) => {
             root_data.push(Node::Sprite(name.clone(), vec![], false, 100.0, 1));
             if let Node::Sprite(_, blocks, is_stage, volume, layer) = root_data.last_mut().unwrap()
             {
-                sprite_data = Some(SpriteReferences {
-                    blocks,
-                    is_stage,
-                    volume,
-                    layer,
+                sprite_data = &mut Some(SpriteReferences {
+                    blocks: blocks,
+                    is_stage: is_stage,
+                    volume: volume,
+                    layer: layer,
                 })
             } else {
                 unreachable!()
@@ -237,12 +242,19 @@ fn parse_token(token: &Token, root: &mut Node, state: &mut ParsingState) -> Node
                 "Cannot use top_level outside of block scope",
             );
         }
-        Token::StringLit(data) => {
-            if let ParsingState::BlockInVal(name, sb3_type) = state.clone() {
+        Token::StringLit(data) => match state {
+            ParsingState::BlockInVal(name, sb3_type) => {
                 if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(&sb3_type) {
-                    *state = ParsingState::BlockInBroadcastName(name, data.clone());
+                    *state = match sb3_type {
+                        SB3Type::Broadcast => {
+                            ParsingState::BlockInBroadcastName(name.clone(), data.clone())
+                        }
+                        SB3Type::Var => ParsingState::BlockInVarVal(name.clone(), data.clone()),
+                        SB3Type::List => ParsingState::BlockInListVal(name.clone(), data.clone()),
+                        _ => unreachable!(),
+                    };
                 } else {
-                    if let Some(ref mut unwrapped) = block_data {
+                    if let Some(unwrapped) = block_data {
                         unwrapped.data.push(match sb3_type {
                             SB3Type::Prototype => Node::PrototypeData(data.clone()),
                             SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
@@ -254,33 +266,83 @@ fn parse_token(token: &Token, root: &mut Node, state: &mut ParsingState) -> Node
                             SB3Type::Angle => Node::AngleData(data.clone()),
                             SB3Type::Color => Node::ColorData(data.clone()),
                             SB3Type::String => Node::StringData(data.clone()),
-                            _ => maybe_unreachable!(),
-                        })
+                            _ => unreachable!(),
+                        });
                     }
                 }
             }
-        }
+            ParsingState::BlockInBroadcastName(in_name, uid) => {
+                if let Some(unwrapped) = block_data {
+                    unwrapped.data.push(Node::In(
+                        in_name.clone(),
+                        Box::new(Node::BroadcastData(uid.clone(), data.clone())),
+                    ));
+                }
+                *state = ParsingState::Block;
+            }
+            ParsingState::BlockInVarVal(in_name, uid) => {
+                if let Some(unwrapped) = block_data {
+                    unwrapped.data.push(Node::In(
+                        in_name.clone(),
+                        Box::new(Node::VarInData(uid.clone(), data.clone())),
+                    ))
+                }
+            }
+            ParsingState::BlockInListVal(in_name, uid) => {
+                if let Some(unwrapped) = block_data {
+                    unwrapped.data.push(Node::In(
+                        in_name.clone(),
+                        Box::new(Node::ListInData(uid.clone(), data.clone())),
+                    ))
+                }
+            }
+            _ => throw_error("String literal used in invalid context".to_string()),
+        },
         _ => {
-            if let ParsingState::BlockInType(name) = state.clone() {
-                *state = ParsingState::BlockInVal(
-                    name,
-                    match token {
-                        Token::PrototypeAnnotation => SB3Type::Prototype,
-                        Token::BlockPtrAnnotation => SB3Type::BlockPtr,
-                        Token::SubstackAnnotation => SB3Type::Substack,
-                        Token::DoubleAnnotation => SB3Type::Double,
-                        Token::PosDoubleAnnotation => SB3Type::PosDouble,
-                        Token::PosIntAnnotation => SB3Type::PosInt,
-                        Token::IntAnnotation => SB3Type::Int,
-                        Token::AngleAnnotation => SB3Type::Angle,
-                        Token::ColorAnnotation => SB3Type::Color,
-                        Token::StringAnnotation => SB3Type::String,
-                        Token::BroadcastAnnotation => SB3Type::Broadcast,
-                        Token::VarAnnotation => SB3Type::Var,
-                        Token::ListAnnotation => SB3Type::List,
-                        _ => throw_error("Must use type as second argument of input".to_string()),
-                    },
-                )
+            if [
+                Token::PrototypeAnnotation,
+                Token::BlockPtrAnnotation,
+                Token::SubstackAnnotation,
+                Token::DoubleAnnotation,
+                Token::PosDoubleAnnotation,
+                Token::PosIntAnnotation,
+                Token::IntAnnotation,
+                Token::AngleAnnotation,
+                Token::ColorAnnotation,
+                Token::StringAnnotation,
+                Token::BroadcastAnnotation,
+                Token::VarAnnotation,
+                Token::ListAnnotation,
+            ]
+            .contains(token)
+            {
+                if let ParsingState::BlockInType(name) = state.clone() {
+                    *state = ParsingState::BlockInVal(
+                        name,
+                        match token {
+                            Token::PrototypeAnnotation => SB3Type::Prototype,
+                            Token::BlockPtrAnnotation => SB3Type::BlockPtr,
+                            Token::SubstackAnnotation => SB3Type::Substack,
+                            Token::DoubleAnnotation => SB3Type::Double,
+                            Token::PosDoubleAnnotation => SB3Type::PosDouble,
+                            Token::PosIntAnnotation => SB3Type::PosInt,
+                            Token::IntAnnotation => SB3Type::Int,
+                            Token::AngleAnnotation => SB3Type::Angle,
+                            Token::ColorAnnotation => SB3Type::Color,
+                            Token::StringAnnotation => SB3Type::String,
+                            Token::BroadcastAnnotation => SB3Type::Broadcast,
+                            Token::VarAnnotation => SB3Type::Var,
+                            Token::ListAnnotation => SB3Type::List,
+                            _ => {
+                                throw_error("Must use type as second argument of input".to_string())
+                            }
+                        },
+                    )
+                } else {
+                    throw_error(
+                        "Type annotations must be used as second argument of input".to_string(),
+                    )
+                }
             }
         }
     }
