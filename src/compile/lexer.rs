@@ -272,3 +272,43 @@ pub fn lex(basm_code: &str) -> Vec<Token> {
 
     tokens
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lex_block_tokens() {
+        let token_pairs = [
+            ("block", Token::Block),
+            ("uid", Token::Uid),
+            ("opcode", Token::Opcode),
+            ("parent", Token::Parent),
+            ("next", Token::Next),
+            ("in", Token::In),
+            ("field", Token::Field),
+            ("mut", Token::Mut),
+            ("shadow", Token::Shadow),
+            ("top_level", Token::TopLevel),
+        ];
+        for (input, expected) in token_pairs.iter() {
+            let token = lex_string(input.to_string());
+            assert_eq!(&token, expected);
+        }
+    }
+
+    #[test]
+    fn lex_strings() {
+        let pairs = [
+            ("\"Hello, world!\"", "Hello, world!"),
+            ("\"\"", ""),
+            ("\"12345\"", "12345"),
+            ("\"Special !@#$%^&*()\"", "Special !@#$%^&*()"),
+            ("\"Backslash \\\\ Quotation \\\"\"", "Backslash \\ Quotation \"")
+        ];
+        for (input, expected) in pairs.iter() {
+            let token = lex_string(input.to_string());
+            assert_eq!(&token, &Token::StringLit(expected.to_string()))
+        }
+    }
+}
