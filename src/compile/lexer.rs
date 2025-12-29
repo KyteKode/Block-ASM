@@ -162,7 +162,30 @@ fn lex_string(s_token: String) -> Token {
                 if ufirst == '"' && ulast == '"' {
                     let chars: Vec<char> = misc.chars().collect();
                     let result: String = chars[1..chars.len() - 1].iter().collect();
-                    return Token::StringLit(result);
+
+                    #[derive(PartialEq, Eq)]
+                    enum EscapeState {
+                        Normal,
+                        Escape
+                    }
+
+                    let mut state = EscapeState::Normal;
+
+                    let mut final_result = String::new();
+                    for c in result.chars() {
+                        if c == '\\' {
+                            if state == EscapeState::Normal {
+                                state = EscapeState::Escape;
+                            } else {
+                                state = EscapeState::Normal;
+                                final_result.push('\\');
+                            } 
+                        } else {
+                            final_result.push(c);
+                            state = EscapeState::Normal;
+                        }
+                    }
+                    return Token::StringLit(final_result.to_string());
                 } else if ufirst == '[' && ulast == ']' {
                     let chars: Vec<char> = misc.chars().collect();
                     let result: String = chars[1..chars.len() - 1].iter().collect();
