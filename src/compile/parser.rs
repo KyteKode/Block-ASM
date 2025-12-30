@@ -1,4 +1,4 @@
-use std::f32::consts::E;
+use std::collections::HashMap;
 
 use super::lexer::Token;
 
@@ -170,78 +170,6 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
                 }
             }
         }
-        Token::Uid => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockUid,
-                "Cannot use uid outside of block scope",
-            );
-        }
-        Token::Opcode => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockOpcode,
-                "Cannot use opcode outside of block scope",
-            );
-        }
-        Token::Parent => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockParent,
-                "Cannot use parent outside of block scope",
-            );
-        }
-        Token::Next => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockNext,
-                "Cannot use next outside of block scope",
-            );
-        }
-        Token::In => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockInKey,
-                "Cannot use in outside of block scope",
-            );
-        }
-        Token::Field => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockFieldKey,
-                "Cannot use field outside of block scope",
-            );
-        }
-        Token::Mut => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockMut,
-                "Cannot use mut outside of block scope",
-            );
-        }
-        Token::Shadow => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockShadow,
-                "Cannot use shadow outside of block scope",
-            );
-        }
-        Token::TopLevel => {
-            parse_change_state(
-                state,
-                ParsingState::Block,
-                ParsingState::BlockTopLevel,
-                "Cannot use top_level outside of block scope",
-            );
-        }
         Token::StringLit(data) => match state {
             ParsingState::BlockInVal(name, sb3_type) => {
                 if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(&sb3_type) {
@@ -333,15 +261,67 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
                             Token::BroadcastAnnotation => SB3Type::Broadcast,
                             Token::VarAnnotation => SB3Type::Var,
                             Token::ListAnnotation => SB3Type::List,
-                            _ => {
-                                throw_error("Must use type as second argument of input".to_string())
-                            }
+                            _ => unreachable!(),
                         },
                     )
                 } else {
                     throw_error(
                         "Type annotations must be used as second argument of input".to_string(),
                     )
+                }
+            } else {
+                throw_error("Must use type as second argument of input".to_string());
+            }
+
+            if [
+                Token::Uid,
+                Token::Opcode,
+                Token::Parent,
+                Token::Next,
+                Token::In,
+                Token::Field,
+                Token::Mut,
+                Token::Shadow,
+                Token::TopLevel,
+            ]
+            .contains(token)
+            {
+                let token_map = HashMap::from([
+                    (Token::Uid, "uid"),
+                    (Token::Opcode, "opcode"),
+                    (Token::Parent, "parent"),
+                    (Token::Next, "next"),
+                    (Token::In, "in"),
+                    (Token::Field, "field"),
+                    (Token::Mut, "mut"),
+                    (Token::Shadow, "shadow"),
+                    (Token::TopLevel, "top_level"),
+                ]);
+
+                if *state == ParsingState::Block {
+                    if *state == ParsingState::Block {
+                        *state = match token {
+                            Token::Uid => ParsingState::BlockUid,
+                            Token::Opcode => ParsingState::BlockOpcode,
+                            Token::Parent => ParsingState::BlockParent,
+                            Token::Next => ParsingState::BlockNext,
+                            Token::In => ParsingState::BlockInKey,
+                            Token::Field => ParsingState::BlockFieldKey,
+                            Token::Mut => ParsingState::BlockMut,
+                            Token::Shadow => ParsingState::BlockShadow,
+                            Token::TopLevel => ParsingState::BlockTopLevel,
+                            _ => unreachable!(),
+                        };
+                    } else {
+                        throw_error(format!(
+                            "Cannot use keyword {} outside of block scope",
+                            token_map.get(token).unwrap()
+                        ));
+                    }
+                }
+            } else {
+                if *state == ParsingState::Block {
+                    throw_error("Unexpected token in block scope".to_string());
                 }
             }
         }

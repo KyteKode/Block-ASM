@@ -3,7 +3,7 @@
 
 use super::errors::*;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Token {
     Block,
     Uid,
@@ -166,7 +166,7 @@ fn lex_string(s_token: String) -> Token {
                     #[derive(PartialEq, Eq)]
                     enum EscapeState {
                         Normal,
-                        Escape
+                        Escape,
                     }
 
                     let mut state = EscapeState::Normal;
@@ -179,7 +179,7 @@ fn lex_string(s_token: String) -> Token {
                             } else {
                                 state = EscapeState::Normal;
                                 final_result.push('\\');
-                            } 
+                            }
                         } else {
                             final_result.push(c);
                             state = EscapeState::Normal;
@@ -327,7 +327,10 @@ mod tests {
             ("\"\"", ""),
             ("\"12345\"", "12345"),
             ("\"Special !@#$%^&*()\"", "Special !@#$%^&*()"),
-            ("\"Backslash \\\\ Quotation \\\"\"", "Backslash \\ Quotation \"")
+            (
+                "\"Backslash \\\\ Quotation \\\"\"",
+                "Backslash \\ Quotation \"",
+            ),
         ];
         for (input, expected) in pairs.iter() {
             let token = lex_string(input.to_string());
