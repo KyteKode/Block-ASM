@@ -22,18 +22,28 @@ pub enum WarningType {
     Field,
     Mut,
     Shadow,
+    TopLevel
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OutputType {
+    #[default]
+    SB3, 
+    Parsed,
+    Lexed
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompilationData {
-    pub outname: String,
+    pub out_name: String,
     pub source: String,
 
     pub version: bool,
     pub verbose: bool,
     pub log: bool,
-
     pub stdout: bool,
+    
+    pub out_type: OutputType,
 
     pub reverse: bool,
 

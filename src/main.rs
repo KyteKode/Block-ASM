@@ -3,12 +3,14 @@
 
 mod compile;
 
-use std::env;
-use std::fs;
+use compile::OutputType;
 
 use compile::errors::{throw_error, throw_warning};
 
-use compile::CompilationData;
+use std::env;
+use std::fs;
+
+
 
 fn use_bit(bitfield: &mut u32, pos: u32) {
     *bitfield |= 1u32 << pos;
@@ -26,7 +28,7 @@ fn find_el(vector: &Vec<String>, bitfield: &mut u32, target: &str) -> (bool, usi
 }
 
 fn main() {
-    let mut data = CompilationData::default();
+    let mut data = compile::CompilationData::default();
 
     let args: Vec<String> = env::args().collect();
     let mut used: u32 = 0b11; // checks which terminal arguments are used
@@ -39,7 +41,23 @@ fn main() {
             eprintln!("Error: Could not find output filename after -o");
         } else {
             use_bit(&mut used, (pos + 1) as u32);
-            data.outname = args[pos + 1].clone();
+            data.out_name = args[pos + 1].clone();
+        }
+    }
+
+    let (found, pos) = find_el(&args, &mut used, "-Otoken");
+    if found {
+        use_bit(&mut used, pos as u32);
+        data.out_type = OutputType::Lexed;
+    }
+
+    let (found, pos) = find_el(&args, &mut used, "-Onode");
+    if found {
+        use_bit(&mut used, pos as u32);
+        if data.out_type == OutputType::SB3 {
+            data.out_type = OutputType::Parsed;
+        } else {
+            throw_error("Cannot use both -Otoken and -Onode".to_string())
         }
     }
 
@@ -56,6 +74,7 @@ fn main() {
             (Field, "-Wfield", "-Wno-field"),
             (Mut, "-Wmut", "-Wno-mut"),
             (Shadow, "-Wshadow", "-Wno-shadow"),
+            (TopLevel, "-Wtop", "Wno-top")
         ];
     }
 
@@ -96,7 +115,7 @@ fn main() {
         match fs::read_to_string(filename) {
             Ok(value) => {
                 data.source = value;
-                data.outname = (*filename).clone();
+                data.out_name = (*filename).clone();
             }
             Err(e) => {
                 throw_error(format!("File {}, {}", filename, e));
@@ -106,3 +125,30 @@ fn main() {
 
     compile::compile(&data);
 }
+
+/*
+    Flags:
+    `-W[no-]uid`: Checks if the uids of blocks are unique.
+    `-W[no-]op`: Checks if the opcodes of blocks are valid.
+    `-W[no-]parent`: Checks if the uids the parent properties of blocks point to are valid.
+    `-W[no-]next`: Checks if the uids the next properties of blocks point to are valid.
+    `-W[no-]in`: Checks if the inputs of blocks are valid for their opcode.
+    `-W[no-]field`: Checks if the fields of blocks are valid for their opcode.
+    `-W[no-]mut`: Checks if the mutations of blocks are valid for their opcode.
+    `-W[no-]shadow`: Checks if the shadow property of blocks are valid for their opcode.
+    `-W[no-]top`: Checks if the top_level property of blocks are valid for their opcode.
+    `-Wall`: Enables all validation warnings.
+    `-Werror`: Treats warnings as errors.
+    
+    `-Otoken`: Only lexes the source.
+    `-Onode`: Lexes the source (if not already lexed) and parses the source.
+
+    `-o`: The argument given after will be the name of the compiled SB3. If not included, the name of the SB3 will be the name of the source file.
+    `--stdout`: Prints the output SB3 to stdout instead of a source file. Not compatible with `-o`.
+    `--verbose`: Outputs to stdout a summary of what Block-ASM is doing and some info about the results of each step in compilation.
+    `--log`: Logs everything that Block-ASM does with timestamps
+
+    `--reverse`: Reverses an SB3 back into source code. Not compatible with any of the flags above except for `-o`, `--stdout`, `--verbose`, and `--log`.
+
+    `--version`: Outputs the current Block-ASM version and the Scratch version it generates SB3s for. Not compatible with any of the flags above
+ */
