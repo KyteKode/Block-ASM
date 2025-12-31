@@ -134,42 +134,50 @@ struct ParseData<'a> {
 }
 
 fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut ParsingState) -> Node {
-    let root_data = &mut data.root_data;
+    let mut root_data = &mut data.root_data;
     let mut sprite_data = &mut data.sprite_data;
     let mut block_data = &mut data.block_data;
 
-    match token {
-        Token::SpriteHeader(name) => {
-            root_data.push(Node::Sprite(name.clone(), vec![], false, 100.0, 1));
-            if let Node::Sprite(_, blocks, is_stage, volume, layer) = root_data.last_mut().unwrap()
-            {
-                sprite_data = &mut Some(SpriteReferences {
-                    blocks: blocks,
-                    is_stage: is_stage,
-                    volume: volume,
-                    layer: layer,
-                })
+    match state {
+        ParsingState::Root => {
+            if let Token::SpriteHeader(name) = token {
+                root_data.push(Node::Sprite(name.clone(), vec![], false, 100.0, 1));
+                if let Node::Sprite(_, blocks, is_stage, volume, layer) =
+                    root_data.last_mut().unwrap()
+                {
+                    *sprite_data = Some(SpriteReferences {
+                        blocks,
+                        is_stage,
+                        volume,
+                        layer,
+                    })
+                }
+                *state = ParsingState::Sprite
+            } else if token == &Token::SpriteEnd {
+                *state = ParsingState::Root;
+                *sprite_data = None;
+                *block_data = None;
             } else {
-                unreachable!()
+                //throw_error("Error message")
+                todo!("Add 'Unexpected [token name]' error message")
             }
-
-            parse_change_state(
-                state,
-                ParsingState::Root,
-                ParsingState::Sprite,
-                "Cannot use sprite header outside of global scope",
-            );
         }
-        Token::Block => {
+        ParsingState::Sprite => {
             if let Some(unwrapped) = sprite_data {
-                if *state == ParsingState::Sprite {
-                    *state = ParsingState::Block;
+                if token == &Token::Block {
                     unwrapped.blocks.push(Node::Block(vec![], 0.0, 0.0));
+                    if let Node::Block(data, x, y) = unwrapped.blocks.last_mut().unwrap() {
+                        *block_data = Some(BlockReferences { data, x, y })
+                    }
                 } else {
-                    throw_error("Cannot use block outside of sprite scope".to_string());
+                    todo!("Handle other sprite level tokens (var, list, costume, sound)")
                 }
             }
         }
+        _ => unimplemented!(),
+    }
+
+    /*match token {
         Token::StringLit(data) => match state {
             ParsingState::BlockInVal(name, sb3_type) => {
                 if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(&sb3_type) {
@@ -325,7 +333,7 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
                 }
             }
         }
-    }
+    }*/
 
     todo!("Finish parsing for single token")
 }

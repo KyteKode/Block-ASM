@@ -77,6 +77,7 @@ pub enum Token {
     LayerProperty,
 
     SpriteHeader(String),
+    SpriteEnd,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -153,6 +154,8 @@ fn lex_string(s_token: String) -> Token {
         "is_stage" => Token::IsStageProperty,
         "volume" => Token::VolumeProperty,
         "layer" => Token::LayerProperty,
+
+        "!end" => Token::SpriteEnd,
 
         misc => {
             let first = misc.chars().next();
