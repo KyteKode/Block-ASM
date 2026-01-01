@@ -35,10 +35,8 @@ pub enum Token {
 
     End,
 
-    DataBlock,
-    Name,
-
     VarData,
+    Name,
     IsCloud,
     Mode,
     SpriteName,
@@ -80,6 +78,113 @@ pub enum Token {
     SpriteEnd,
 }
 
+pub fn get_token_name(token: &Token) -> String {
+    let mut name = String::new();
+    let mut no_data = false;
+
+    match token {
+        Token::StringLit(data) => {
+            name = {
+                let chars = data.chars();
+
+                let mut unescaped_data = String::new();
+                for c in chars {
+                    if c == '\\' {
+                        unescaped_data.push_str(r"\\");
+                    } else if c == '"' {
+                        unescaped_data.push_str("\\\"");
+                    } else {
+                        unescaped_data.push(c);
+                    }
+                }
+
+                format!("string literal ( \"{}\" )", unescaped_data)
+            }
+        }
+        Token::NumLit(data) => name = format!("number literal ( {} )", data),
+        Token::BoolLit(data) => name = data.to_string(),
+        Token::SpriteHeader(data) => name = format!("sprite header ( [{}] )", data),
+        _ => no_data = true,
+    }
+
+    if no_data {
+        name = match token {
+            Token::Block => "block",
+            Token::Uid => "uid",
+            Token::Opcode => "opcode",
+            Token::Parent => "parent",
+            Token::Next => "next",
+            Token::In => "in",
+            Token::Field => "field",
+            Token::Mut => "mut",
+            Token::Shadow => "shadow",
+            Token::TopLevel => "top_level",
+
+            Token::XPos => "x_pos",
+            Token::YPos => "y_pos",
+
+            Token::PrototypeAnnotation => "prototype",
+            Token::BlockPtrAnnotation => "block_ptr",
+            Token::SubstackAnnotation => "substack",
+            Token::DoubleAnnotation => "double",
+            Token::PosDoubleAnnotation => "pos_double",
+            Token::PosIntAnnotation => "pos_int",
+            Token::IntAnnotation => "int",
+            Token::AngleAnnotation => "angle",
+            Token::ColorAnnotation => "color",
+            Token::StringAnnotation => "string",
+            Token::BroadcastAnnotation => "broadcast",
+            Token::VarAnnotation => "var",
+            Token::ListAnnotation => "list",
+
+            Token::End => "end",
+
+            Token::VarData => "var",
+            Token::Name => "name",
+            Token::IsCloud => "is_cloud",
+            Token::Mode => "mode",
+            Token::SpriteName => "sprite_name",
+            Token::Value => "value",
+            Token::Width => "width",
+            Token::Height => "height",
+            Token::Visible => "visible",
+            Token::SliderMin => "slider_min",
+            Token::SliderMax => "slider_max",
+            Token::IsDiscrete => "is_discrete",
+
+            Token::Path => "path",
+            Token::Format => "format",
+
+            Token::Costume => "costume",
+            Token::BitmapRes => "bitmap_res",
+            Token::CenterX => "center_x",
+            Token::CenterY => "center_y",
+
+            Token::Sound => "sound",
+            Token::Rate => "rate",
+            Token::Samples => "samples",
+
+            Token::Broadcast => "broadcast",
+
+            Token::List => "list",
+            Token::Item => "item",
+
+            Token::NullLit => "null",
+
+            Token::IsStageProperty => "is_stage",
+            Token::VolumeProperty => "volume",
+            Token::LayerProperty => "layer",
+
+            Token::SpriteEnd => "!end",
+
+            _ => unreachable!(),
+        }
+        .to_string();
+    }
+
+    name
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum TokenizationMode {
     Normal,
@@ -118,12 +223,10 @@ fn lex_string(s_token: String) -> Token {
         "variable" => Token::VarAnnotation,
         "list" => Token::ListAnnotation,
 
-        "data_block" => Token::DataBlock,
-        "name" => Token::Name,
-
         "end" => Token::End,
 
         "var" => Token::VarData,
+        "name" => Token::Name,
         "is_cloud" => Token::IsCloud,
         "mode" => Token::Mode,
         "sprite_name" => Token::SpriteName,
@@ -202,9 +305,10 @@ fn lex_string(s_token: String) -> Token {
                     let parsed = misc.parse::<f64>();
                     match parsed {
                         Ok(_) => Token::NumLit(misc.to_string()),
-                        Err(_) => {
-                            throw_error(format!("{} is not a keyword, string, or number", misc))
-                        }
+                        Err(_) => throw_error(format!(
+                            "{} is not a keyword, string, boolean, or number",
+                            misc
+                        )),
                     }
                 }
             } else {
@@ -341,6 +445,104 @@ mod tests {
         for (input, expected) in pairs.iter() {
             let token = lex_string(input.to_string());
             assert_eq!(&token, &Token::StringLit(expected.to_string()))
+        }
+    }
+
+    #[test]
+    fn name_of_block_tokens() {
+        let token_pairs = [
+            (Token::Block, "block"),
+            (Token::Uid, "uid"),
+            (Token::Opcode, "opcode"),
+            (Token::Parent, "parent"),
+            (Token::Next, "next"),
+            (Token::In, "in"),
+            (Token::Field, "field"),
+            (Token::Mut, "mut"),
+            (Token::Shadow, "shadow"),
+            (Token::TopLevel, "top_level"),
+        ];
+
+        for (input, expected) in token_pairs.iter() {
+            let name = get_token_name(input);
+            assert_eq!(name, expected.to_string());
+        }
+    }
+
+    #[test]
+    fn name_of_types() {
+        let token_pairs = [
+            (Token::PrototypeAnnotation, "prototype"),
+            (Token::BlockPtrAnnotation, "block_ptr"),
+            (Token::SubstackAnnotation, "substack"),
+            (Token::DoubleAnnotation, "double"),
+            (Token::PosDoubleAnnotation, "pos_double"),
+            (Token::PosIntAnnotation, "pos_int"),
+            (Token::AngleAnnotation, "angle"),
+            (Token::ColorAnnotation, "color"),
+            (Token::StringAnnotation, "string"),
+            (Token::BroadcastAnnotation, "broadcast"),
+            (Token::VarAnnotation, "var"),
+            (Token::ListAnnotation, "list"),
+        ];
+
+        for (input, expected) in token_pairs.iter() {
+            let name = get_token_name(input);
+            assert_eq!(name, expected.to_string());
+        }
+    }
+
+    #[test]
+    fn name_of_literals() {
+        let token_pairs = [
+            (
+                Token::StringLit("Hello, world!".to_string()),
+                "string literal ( \"Hello, world!\" )",
+            ),
+            (Token::StringLit("".to_string()), "string literal ( \"\" )"),
+            (
+                Token::StringLit("12345".to_string()),
+                "string literal ( \"12345\" )",
+            ),
+            (
+                Token::StringLit("Special !@#$%^&*()".to_string()),
+                "string literal ( \"Special !@#$%^&*()\" )",
+            ),
+            (
+                Token::StringLit("Backslash \\ Quotation \"".to_string()),
+                "string literal ( \"Backslash \\\\ Quotation \\\"\" )",
+            ),
+            (
+                Token::NumLit("12345".to_string()),
+                "number literal ( 12345 )",
+            ),
+            (
+                Token::NumLit("3.14159".to_string()),
+                "number literal ( 3.14159 )",
+            ),
+            (
+                Token::NumLit("99999".to_string()),
+                "number literal ( 99999 )",
+            ),
+            (Token::BoolLit(true), "true"),
+            (Token::BoolLit(false), "false"),
+            (
+                Token::SpriteHeader("basm".to_string()),
+                "sprite header ( [basm] )",
+            ),
+            (
+                Token::SpriteHeader("Stage".to_string()),
+                "sprite header ( [Stage] )",
+            ),
+            (
+                Token::SpriteHeader("Renderer".to_string()),
+                "sprite header ( [Renderer] )",
+            ),
+        ];
+
+        for (input, expected) in token_pairs.iter() {
+            let name = get_token_name(input);
+            assert_eq!(name, expected.to_string());
         }
     }
 }
