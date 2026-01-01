@@ -318,10 +318,11 @@ fn lex_string(s_token: String) -> Token {
     };
 }
 
-pub fn lex(basm_code: &str) -> Vec<Token> {
-    let mut tokens: Vec<Token> = Vec::new();
+fn split_source(code: &str) -> Vec<String> {
+    let mut s_tokens: Vec<String> = Vec::new();
 
-    let chars = basm_code.chars().collect::<Vec<_>>();
+    let mut chars: Vec<_> = code.chars().collect();
+    chars.push(' ');
     let chars_iter = chars.iter();
 
     let mut s_token = String::new();
@@ -383,7 +384,7 @@ pub fn lex(basm_code: &str) -> Vec<Token> {
         // Handles other characters
         if (ch == &' ' || ch == &'\n') && mode == TokenizationMode::Normal {
             if s_token != "" {
-                tokens.push(lex_string(s_token));
+                s_tokens.push(s_token);
             }
             s_token = String::new();
         } else if ch == &'\n' && mode == TokenizationMode::SpriteHeader {
@@ -391,7 +392,7 @@ pub fn lex(basm_code: &str) -> Vec<Token> {
                 "Line {}: Cannot use newline in sprite header",
                 line
             ));
-        } else {
+        } else if !"[]".contains(ch.to_string().as_str()) {
             s_token.push(*ch);
         }
     }
@@ -403,8 +404,23 @@ pub fn lex(basm_code: &str) -> Vec<Token> {
         ));
     }
 
+    s_tokens
+}
+
+pub fn lex(code: &str) -> Vec<Token> {
+    let split = split_source(code);
+
+    let mut tokens = Vec::new();
+    for s in split {
+        tokens.push(lex_string(s));
+    }
+
     tokens
 }
+
+
+
+
 
 #[cfg(test)]
 mod tests {
@@ -543,6 +559,26 @@ mod tests {
         for (input, expected) in token_pairs.iter() {
             let name = get_token_name(input);
             assert_eq!(name, expected.to_string());
+        }
+    }
+
+    #[test]
+    fn test_source_splitting() {
+        let pairs = [
+            ("a b c d e", vec!["a", "b", "c", "d", "e"]),
+            ("fg h ijkl", vec!["fg", "h", "ijkl"]),
+            ("mn \"o pq\" rs", vec!["mn", "\"o pq\"", "rs"]),
+            ("tuv [wx y] z", vec!["tuv", "[wx y]", "z"]),
+        ];
+
+        for (input, expected) in pairs.iter() {
+            let mut converted = Vec::new();
+            for val in expected.iter() {
+                converted.push(val.to_string());
+            }
+
+            let result = split_source(input);
+            assert_eq!(result, converted);
         }
     }
 }
