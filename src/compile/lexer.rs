@@ -185,13 +185,6 @@ pub fn get_token_name(token: &Token) -> String {
     name
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum TokenizationMode {
-    Normal,
-    String,
-    SpriteHeader,
-}
-
 #[allow(clippy::needless_return)]
 fn lex_string(s_token: String) -> Token {
     return match &*s_token {
@@ -318,90 +311,90 @@ fn lex_string(s_token: String) -> Token {
     };
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum SplitState {
+    Normal,
+    String(bool),
+    SpriteHeader(bool),
+}
+
 fn split_source(code: &str) -> Vec<String> {
     let mut s_tokens: Vec<String> = Vec::new();
 
-    let mut chars: Vec<_> = code.chars().collect();
+    let mut chars: Vec<char> = code.chars().collect();
     chars.push(' ');
-    let chars_iter = chars.iter();
 
     let mut s_token = String::new();
-
-    let mut mode = TokenizationMode::Normal;
 
     let mut string_start = 0;
     let mut line = 1;
 
-    for (idx, ch) in chars_iter.enumerate() {
-        if ch == &'\n' {
+    let mut state = SplitState::Normal;
+    let mut prev1;
+    let mut prev2;
+
+    for (idx, ch) in chars.iter().enumerate() {
+        prev1 = if idx == 0 { ' ' } else { chars[idx - 1] };
+        prev2 = if idx < 2 { ' ' } else { chars[idx - 2] };
+
+        if *ch == '\n' {
             line += 1;
+            state = SplitState::Normal;
+            continue;
         }
 
-        // Handles string literals
-        if ch == &'"' {
-            match mode {
-                TokenizationMode::Normal => {
-                    string_start = line;
-                    mode = TokenizationMode::String;
-                }
-                TokenizationMode::String => {
-                    if chars[idx] == '\\' {
-                        s_token.push('"');
-                        mode = TokenizationMode::String;
+        match state {
+            SplitState::Normal => {
+                state = match ch {
+                    '"' => SplitState::String(false),
+                    '[' => SplitState::SpriteHeader(false),
+                    _ => SplitState::Normal,
+                };
+
+                if state == SplitState::Normal && [' ', '\t'].contains(ch) {
+                    if s_token != "" {
+                        s_tokens.push(s_token.clone());
+                        s_token = String::new();
                     }
-                    mode = TokenizationMode::Normal;
-                }
-                TokenizationMode::SpriteHeader => {
-                    s_token.push('"');
-                    mode = TokenizationMode::SpriteHeader;
+                } else {
+                    s_token.push(*ch);
                 }
             }
-        }
-
-        // Opens sprite headers
-        if ch == &'[' {
-            s_token.push('[');
-            mode = match mode {
-                TokenizationMode::Normal => TokenizationMode::SpriteHeader,
-                TokenizationMode::String => TokenizationMode::String,
-                TokenizationMode::SpriteHeader => TokenizationMode::SpriteHeader,
+            SplitState::String(escaped) => {
+                if *ch == '\\' {
+                    state = SplitState::String(!escaped);
+                } else {
+                    if *ch == '"' {
+                        if !escaped {
+                            state = SplitState::Normal;
+                            s_token.push(*ch);
+                            s_tokens.push(s_token.clone());
+                            s_token = String::new();
+                            continue;
+                        }
+                    }
+                    state = SplitState::String(false);
+                    s_token.push(*ch);
+                }
+            }
+            SplitState::SpriteHeader(escaped) => {
+                if *ch == '\\' {
+                    state = SplitState::SpriteHeader(!escaped);
+                } else {
+                    if *ch == ']' {
+                        if !escaped {
+                            state = SplitState::Normal;
+                            s_token.push(*ch);
+                            s_tokens.push(s_token.clone());
+                            s_token = String::new();
+                            continue;
+                        }
+                    }
+                    state = SplitState::SpriteHeader(false);
+                    s_token.push(*ch);
+                }
             }
         }
-
-        // Closes sprite headers
-        if ch == &']' {
-            s_token.push(']');
-            mode = match mode {
-                TokenizationMode::Normal => throw_error(format!(
-                    "Line {}: Cannot close sprite header without opening it",
-                    line
-                )),
-                TokenizationMode::String => TokenizationMode::String,
-                TokenizationMode::SpriteHeader => TokenizationMode::Normal,
-            }
-        }
-
-        // Handles other characters
-        if (ch == &' ' || ch == &'\n') && mode == TokenizationMode::Normal {
-            if s_token != "" {
-                s_tokens.push(s_token);
-            }
-            s_token = String::new();
-        } else if ch == &'\n' && mode == TokenizationMode::SpriteHeader {
-            throw_error(format!(
-                "Line {}: Cannot use newline in sprite header",
-                line
-            ));
-        } else if !"[]".contains(ch.to_string().as_str()) {
-            s_token.push(*ch);
-        }
-    }
-
-    if mode == TokenizationMode::String {
-        throw_error(format!(
-            "Unterminated string on line {}",
-            string_start.to_string()
-        ));
     }
 
     s_tokens
@@ -417,10 +410,6 @@ pub fn lex(code: &str) -> Vec<Token> {
 
     tokens
 }
-
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -569,6 +558,20 @@ mod tests {
             ("fg h ijkl", vec!["fg", "h", "ijkl"]),
             ("mn \"o pq\" rs", vec!["mn", "\"o pq\"", "rs"]),
             ("tuv [wx y] z", vec!["tuv", "[wx y]", "z"]),
+            (
+                "a bc \"d ef\" g [hi jkl] \nlm [nopq rs] \"t uvw\" xyz",
+                vec![
+                    "a",
+                    "bc",
+                    "\"d ef\"",
+                    "g",
+                    "[hi jkl]",
+                    "lm",
+                    "[nopq rs]",
+                    "\"t uvw\"",
+                    "xyz",
+                ],
+            ),
         ];
 
         for (input, expected) in pairs.iter() {
