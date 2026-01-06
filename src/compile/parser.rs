@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::mem::take;
 
 use super::errors::*;
 use super::lexer::Token;
@@ -58,6 +59,7 @@ pub enum Node {
     // data, x, y
     Block(Vec<Node>, f64, f64),
     Uid(String),
+    Opcode(String),
     Parent(String),
     Next(String),
     In(String, Box<Node>),
@@ -191,115 +193,34 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
                 }
             }
         }
-        _ => unimplemented!(),
-    }
-
-    /*match token {
-        Token::StringLit(data) => match state {
-            ParsingState::BlockInVal(name, sb3_type) => {
-                if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(&sb3_type) {
-                    *state = match sb3_type {
-                        SB3Type::Broadcast => {
-                            ParsingState::BlockInBroadcastName(name.clone(), data.clone())
-                        }
-                        SB3Type::Var => ParsingState::BlockInVarVal(name.clone(), data.clone()),
-                        SB3Type::List => ParsingState::BlockInListVal(name.clone(), data.clone()),
-                        _ => unreachable!(),
-                    };
+        ParsingState::BlockUid => {
+            if let Some(unwrapped) = block_data {
+                if let Token::StringLit(mut strdata) = token.clone() {
+                    unwrapped.data.push(Node::Uid(take(&mut strdata)));
                 } else {
-                    if let Some(unwrapped) = block_data {
-                        unwrapped.data.push(match sb3_type {
-                            SB3Type::Prototype => Node::PrototypeData(data.clone()),
-                            SB3Type::BlockPtr => Node::BlockPtrData(data.clone()),
-                            SB3Type::Substack => Node::SubstackData(data.clone()),
-                            SB3Type::Double => Node::DoubleData(data.clone()),
-                            SB3Type::PosDouble => Node::PosDoubleData(data.clone()),
-                            SB3Type::PosInt => Node::PosIntData(data.clone()),
-                            SB3Type::Int => Node::IntData(data.clone()),
-                            SB3Type::Angle => Node::AngleData(data.clone()),
-                            SB3Type::Color => Node::ColorData(data.clone()),
-                            SB3Type::String => Node::StringData(data.clone()),
-                            _ => unreachable!(),
-                        });
-                    }
-                }
-            }
-            ParsingState::BlockInBroadcastName(in_name, uid) => {
-                if let Some(unwrapped) = block_data {
-                    unwrapped.data.push(Node::In(
-                        in_name.clone(),
-                        Box::new(Node::BroadcastData(uid.clone(), data.clone())),
-                    ));
+                    throw_error(format!(
+                        "Expected string literal, got {}",
+                        lexer::get_token_name(token)
+                    ))
                 }
                 *state = ParsingState::Block;
             }
-            ParsingState::BlockInVarVal(in_name, uid) => {
-                if let Some(unwrapped) = block_data {
-                    unwrapped.data.push(Node::In(
-                        in_name.clone(),
-                        Box::new(Node::VarInData(uid.clone(), data.clone())),
-                    ))
-                }
-            }
-            ParsingState::BlockInListVal(in_name, uid) => {
-                if let Some(unwrapped) = block_data {
-                    unwrapped.data.push(Node::In(
-                        in_name.clone(),
-                        Box::new(Node::ListInData(uid.clone(), data.clone())),
-                    ))
-                }
-            }
-            _ => throw_error("String literal used in invalid context".to_string()),
-        },
-        _ => {
-            if [
-                Token::PrototypeAnnotation,
-                Token::BlockPtrAnnotation,
-                Token::SubstackAnnotation,
-                Token::DoubleAnnotation,
-                Token::PosDoubleAnnotation,
-                Token::PosIntAnnotation,
-                Token::IntAnnotation,
-                Token::AngleAnnotation,
-                Token::ColorAnnotation,
-                Token::StringAnnotation,
-                Token::BroadcastAnnotation,
-                Token::VarAnnotation,
-                Token::ListAnnotation,
-            ]
-            .contains(token)
-            {
-                if let ParsingState::BlockInType(name) = state.clone() {
-                    *state = ParsingState::BlockInVal(
-                        name,
-                        match token {
-                            Token::PrototypeAnnotation => SB3Type::Prototype,
-                            Token::BlockPtrAnnotation => SB3Type::BlockPtr,
-                            Token::SubstackAnnotation => SB3Type::Substack,
-                            Token::DoubleAnnotation => SB3Type::Double,
-                            Token::PosDoubleAnnotation => SB3Type::PosDouble,
-                            Token::PosIntAnnotation => SB3Type::PosInt,
-                            Token::IntAnnotation => SB3Type::Int,
-                            Token::AngleAnnotation => SB3Type::Angle,
-                            Token::ColorAnnotation => SB3Type::Color,
-                            Token::StringAnnotation => SB3Type::String,
-                            Token::BroadcastAnnotation => SB3Type::Broadcast,
-                            Token::VarAnnotation => SB3Type::Var,
-                            Token::ListAnnotation => SB3Type::List,
-                            _ => unreachable!(),
-                        },
-                    )
+        }
+        ParsingState::BlockOpcode => {
+            if let Some(unwrapped) = block_data {
+                if let Token::StringLit(mut strdata) = token.clone() {
+                    unwrapped.data.push(Node::Opcode(take(&mut strdata)));
                 } else {
-                    throw_error(
-                        "Type annotations must be used as second argument of input".to_string(),
-                    )
+                    throw_error(format!(
+                        "Expected string literal, got {}",
+                        lexer::get_token_name(token)
+                    ))
                 }
-            } else {
-                throw_error("Must use type as second argument of input".to_string());
+                *state = ParsingState::Block;
             }
         }
-    }*/
-
+        _ => unimplemented!(),
+    }
     todo!("Finish parsing for single token")
 }
 
