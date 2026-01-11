@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2025 KyteKode
+
 use std::collections::HashMap;
 use std::mem::take;
 
 use super::errors::*;
-use super::lexer::Token;
-use super::*;
+use super::lexer::{self, Token, get_token_name};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SB3Type {
@@ -93,9 +95,7 @@ enum ParsingState {
     BlockInKey,
     BlockInType(String),
     BlockInVal(String, SB3Type),
-    BlockInBroadcastName(String, String),
-    BlockInVarVal(String, String),
-    BlockInListVal(String, String),
+    BlockInDataVal(String, SB3Type, String),
     BlockFieldKey,
     BlockFieldVal,
     BlockMut,
@@ -112,7 +112,7 @@ fn parse_change_state(
     if *state == checked_state {
         *state = result_state;
     } else {
-        throw_error(error.to_string());
+        throw_error(error);
     }
 }
 
@@ -135,7 +135,7 @@ struct ParseData<'a> {
     block_data: Option<BlockReferences<'a>>,
 }
 
-fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut ParsingState) -> Node {
+fn parse_token<'a>(token: &mut Token, data: &'a mut ParseData<'a>, state: &mut ParsingState) -> Node {
     let mut root_data = &mut data.root_data;
     let mut sprite_data = &mut data.sprite_data;
     let mut block_data = &mut data.block_data;
@@ -143,7 +143,7 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
     match state {
         ParsingState::Root => {
             if let Token::SpriteHeader(name) = token {
-                root_data.push(Node::Sprite(name.clone(), vec![], false, 100.0, 1));
+                root_data.push(Node::Sprite(take(name), vec![], false, 100.0, 1));
                 if let Node::Sprite(_, blocks, is_stage, volume, layer) =
                     root_data.last_mut().unwrap()
                 {
@@ -160,7 +160,10 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
                 *sprite_data = None;
                 *block_data = None;
             } else {
-                //throw_error("Error message") todo!("Add 'Unexpected [token name]' error message") }
+                throw_error(format!(
+                    "Unexpected {} in top level scope",
+                    get_token_name(token)
+                ));
             }
         }
         ParsingState::Sprite => {
@@ -188,19 +191,19 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
                     Token::TopLevel => ParsingState::BlockTopLevel,
                     _ => throw_error(format!(
                         "Unexpected {} in block scope",
-                        lexer::get_token_name(token)
+                        get_token_name(token)
                     )),
                 }
             }
         }
         ParsingState::BlockUid => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = token.clone() {
+                if let Token::StringLit(mut strdata) = take(token) {
                     unwrapped.data.push(Node::Uid(take(&mut strdata)));
                 } else {
                     throw_error(format!(
                         "Expected string literal, got {}",
-                        lexer::get_token_name(token)
+                        get_token_name(token)
                     ))
                 }
                 *state = ParsingState::Block;
@@ -208,12 +211,76 @@ fn parse_token<'a>(token: &Token, data: &'a mut ParseData<'a>, state: &mut Parsi
         }
         ParsingState::BlockOpcode => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = token.clone() {
+                if let Token::StringLit(mut strdata) = take(token) {
                     unwrapped.data.push(Node::Opcode(take(&mut strdata)));
                 } else {
                     throw_error(format!(
                         "Expected string literal, got {}",
-                        lexer::get_token_name(token)
+                        get_token_name(token)
+                    ))
+                }
+                *state = ParsingState::Block;
+            }
+        }
+        ParsingState::BlockInKey => {
+            if let Some(unwrapped) = block_data {
+                if let Token::StringLit(mut strdata) = take(token) {
+                    *state = ParsingState::BlockInType(take(&mut strdata));
+                } else {
+                    throw_error(format!(
+                        "Expected string literal, got {}",
+                        get_token_name(token)
+                    ))
+                }
+            }
+        }
+        ParsingState::BlockInType(uid) => {
+            if let Some(unwrapped) = block_data {
+                *state = ParsingState::BlockInVal(take(uid), match token {
+                    Token::PrototypeAnnotation => SB3Type::Prototype,
+                    Token::BlockPtrAnnotation => SB3Type::BlockPtr,
+                    Token::SubstackAnnotation => SB3Type::Substack,
+                    Token::DoubleAnnotation => SB3Type::Double,
+                    Token::IntAnnotation => SB3Type::Int,
+                    Token::PosIntAnnotation => SB3Type::PosInt,
+                    Token::PosDoubleAnnotation => SB3Type::PosDouble,
+                    Token::AngleAnnotation => SB3Type::Angle,
+                    Token::ColorAnnotation => SB3Type::Color,
+                    Token::StringAnnotation => SB3Type::String,
+                    Token::BroadcastAnnotation => SB3Type::Broadcast,
+                    Token::VarAnnotation => SB3Type::Var,
+                    Token::ListAnnotation => SB3Type::List,
+                    _ => throw_error(format!(
+                        "Expected type annotation, got {}",
+                        get_token_name(token)
+                    ))
+                });
+            }
+        }
+        ParsingState::BlockInVal(uid, sb3_type) => {
+            if let Some(unwrapped) = block_data {
+                if let Token::StringLit(mut strdata) = take(token) {
+                    if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(sb3_type) {
+                        *state = ParsingState::BlockInDataVal(take(uid), *sb3_type, take(&mut strdata));
+                    } else {
+                        unwrapped.data.push(Node::In(take(uid), Box::new(match sb3_type {
+                            SB3Type::Prototype => Node::PrototypeData(take(&mut strdata)),
+                            SB3Type::BlockPtr => Node::BlockPtrData(take(&mut strdata)),
+                            SB3Type::Substack => Node::SubstackData(take(&mut strdata)),
+                            SB3Type::Double => Node::DoubleData(take(&mut strdata)),
+                            SB3Type::Int => Node::IntData(take(&mut strdata)),
+                            SB3Type::PosInt => Node::PosIntData(take(&mut strdata)),
+                            SB3Type::PosDouble => Node::PosDoubleData(take(&mut strdata)),
+                            SB3Type::Angle => Node::AngleData(take(&mut strdata)),
+                            SB3Type::Color => Node::ColorData(take(&mut strdata)),
+                            SB3Type::String => Node::StringData(take(&mut strdata)),
+                            _ => unreachable!(),
+                        })));
+                    }
+                } else {
+                    throw_error(format!(
+                        "Expected string literal, got {}",
+                        get_token_name(token)
                     ))
                 }
                 *state = ParsingState::Block;
