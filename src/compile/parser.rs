@@ -66,6 +66,8 @@ pub enum Node {
     Next(String),
     In(String, Box<Node>),
     Field(String, Vec<String>),
+    Mut(bool),
+    TopLevel(bool),
 
     NullData,
     PrototypeData(String),
@@ -335,6 +337,17 @@ fn parse_token<'a>(
                     ))
                 }
                 *state = ParsingState::Block;
+            }
+        }
+        ParsingState::BlockMut => {
+            todo!("add functionality")
+        }
+        ParsingState::BlockTopLevel => {
+            if let Some(unwrapped) = block_data {
+                if let Token::BoolLit(mut booldata) = take(token) {
+                    unwrapped.data.push(Node::TopLevel(booldata));
+                    *state = ParsingState::Block;
+                }
             }
         }
         _ => unimplemented!(),
