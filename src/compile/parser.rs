@@ -66,7 +66,7 @@ pub enum Node {
     Next(String),
     In(String, Box<Node>),
     Field(String, Vec<String>),
-    Mut(bool),
+    Mut(String, String),
     TopLevel(bool),
 
     NullData,
@@ -100,7 +100,8 @@ enum ParsingState {
     BlockInDataVal(String, SB3Type, String),
     BlockFieldKey,
     BlockFieldVal(String, Vec<String>),
-    BlockMut,
+    BlockMutKey,
+    BlockMutVal(String),
     BlockShadow,
     BlockTopLevel,
 }
@@ -182,7 +183,7 @@ fn parse_token<'a>(
                     Token::Next => ParsingState::BlockNext,
                     Token::In => ParsingState::BlockInKey,
                     Token::Field => ParsingState::BlockFieldKey,
-                    Token::Mut => ParsingState::BlockMut,
+                    Token::Mut => ParsingState::BlockMutKey,
                     Token::TopLevel => ParsingState::BlockTopLevel,
                     _ => throw_error(format!(
                         "Unexpected {} in block scope",
@@ -339,8 +340,28 @@ fn parse_token<'a>(
                 *state = ParsingState::Block;
             }
         }
-        ParsingState::BlockMut => {
-            todo!("add functionality")
+        ParsingState::BlockMutKey => {
+            if let Token::StringLit(mut strdata) = take(token) {
+                *state = ParsingState::BlockMutVal(strdata);
+            } else {
+                throw_error(format!(
+                    "Expected string literal, got {}",
+                    get_token_name(token)
+                ))
+            }
+        }
+        ParsingState::BlockMutVal(key) => {
+            if let Some(unwrapped) = block_data {
+                if let Token::StringLit(mut strdata) = take(token) {
+                    unwrapped.data.push(Node::Mut(take(key), strdata))
+                } else {
+                    throw_error(format!(
+                        "Expected string literal, got {}",
+                        get_token_name(token)
+                    ))
+                }
+                *state = ParsingState::Block;
+            }
         }
         ParsingState::BlockTopLevel => {
             if let Some(unwrapped) = block_data {
