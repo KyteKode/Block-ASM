@@ -18,6 +18,8 @@ pub enum Token {
     Mut,
     Shadow,
     TopLevel,
+    
+    Semicolon,
 
     XPos,
     YPos,
