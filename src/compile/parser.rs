@@ -104,6 +104,8 @@ enum ParsingState {
     BlockMutVal(String),
     BlockShadow,
     BlockTopLevel,
+    BlockXPos,
+    BlockYPos
 }
 
 struct SpriteReferences<'a> {
@@ -185,6 +187,8 @@ fn parse_token<'a>(
                     Token::Field => ParsingState::BlockFieldKey,
                     Token::Mut => ParsingState::BlockMutKey,
                     Token::TopLevel => ParsingState::BlockTopLevel,
+                    Token::XPos => ParsingState::BlockXPos,
+                    Token::YPos => ParsingState::BlockYPos,
                     _ => throw_error(format!(
                         "Unexpected {} in block scope",
                         get_token_name(token)
@@ -368,6 +372,43 @@ fn parse_token<'a>(
                 if let Token::BoolLit(mut booldata) = take(token) {
                     unwrapped.data.push(Node::TopLevel(booldata));
                     *state = ParsingState::Block;
+                } else {
+                    throw_error(format!(
+                        "Expected boolean literal, got {}",
+                        get_token_name(token)
+                    ))
+                }
+            }
+        }
+        ParsingState::BlockXPos => {
+            if let Some(unwrapped) = block_data {
+                if let Token::NumLit(numdata) = token {
+                    let parsed = numdata.parse::<f64>();
+                    match parsed {
+                        Ok(result) => *unwrapped.x = result,
+                        Err(_) => throw_error(format!("Could not parse {} as float", numdata))
+                    }
+                } else {
+                    throw_error(format!(
+                        "Expected number literal, got {}",
+                        get_token_name(token)
+                    ))
+                }
+            }
+        }
+        ParsingState::BlockYPos => {
+            if let Some(unwrapped) = block_data {
+                if let Token::NumLit(numdata) = token {
+                    let parsed = numdata.parse::<f64>();
+                    match parsed {
+                        Ok(result) => *unwrapped.y = result,
+                        Err(_) => throw_error(format!("Could not parse {} as float", numdata))
+                    }
+                } else {
+                    throw_error(format!(
+                        "Expected number literal, got {}",
+                        get_token_name(token)
+                    ))
                 }
             }
         }
