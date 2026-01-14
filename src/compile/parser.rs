@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2025 KyteKode
 
+use std::alloc::LayoutErr;
 use std::collections::HashMap;
 use std::mem::take;
 
@@ -36,29 +37,54 @@ pub enum MonitorType {
 pub enum Node {
     Root(Vec<Node>),
 
-    // name, blocks, is stage, volume, layer
-    Sprite(String, Vec<Node>, bool, f64, i64),
+    Sprite {
+        name: String,
+        blocks: Vec<Node>,
+        stage: bool,
+        volume: f64,
+        layer: i64,
+    },
 
     NameProperty(String),
     IsStageProperty(bool),
     VolumeProperty(f64),
 
-    // visible, uid, name, type, value, monitor type
-    VarData(bool, String, String, SB3Type, String, MonitorType),
+    Var {
+        visible: bool,
+        uid: String,
+        name: String,
+        val_type: SB3Type,
+        value: String,
+        monitor_type: MonitorType,
+    },
 
-    // visible, values
-    ListData(bool, Vec<String>),
+    List {
+        visible: bool,
+        data: Vec<String>,
+    },
 
-    // uid, name
-    BroadCastProperty(String, String),
+    Broadcast {
+        uid: String,
+        name: String,
+    },
 
-    // name, path to costume, format, bitmap resolution, x center, y center
-    Costume(String, String, String, f64, f64, f64),
+    Costume {
+        name: String,
+        path: String,
+        format: String,
+        bitmap_res: f64,
+        x_center: f64,
+        y_center: f64,
+    },
 
-    // name, path to sound, format, sampling rate, sample count
-    Sound(String, String, String, f64, f64),
+    Sound {
+        name: String,
+        path: String,
+        format: String,
+        sample_rate: f64,
+        sample_count: f64,
+    },
 
-    // data, x, y
     Block(Vec<Node>, f64, f64),
     Uid(String),
     Opcode(String),
@@ -105,7 +131,7 @@ enum ParsingState {
     BlockShadow,
     BlockTopLevel,
     BlockXPos,
-    BlockYPos
+    BlockYPos,
 }
 
 struct SpriteReferences<'a> {
@@ -139,9 +165,20 @@ fn parse_token<'a>(
     match state {
         ParsingState::Root => {
             if let Token::SpriteHeader(name) = token {
-                root_data.push(Node::Sprite(take(name), vec![], false, 100.0, 1));
-                if let Node::Sprite(_, blocks, is_stage, volume, layer) =
-                    root_data.last_mut().unwrap()
+                root_data.push(Node::Sprite {
+                    name: take(name),
+                    blocks: vec![],
+                    stage: false,
+                    volume: 100.0,
+                    layer: 1,
+                });
+                if let Node::Sprite {
+                    name: _,
+                    blocks: blocks,
+                    stage: is_stage,
+                    volume: volume,
+                    layer: layer,
+                } = root_data.last_mut().unwrap()
                 {
                     *sprite_data = Some(SpriteReferences {
                         blocks,
@@ -386,7 +423,7 @@ fn parse_token<'a>(
                     let parsed = numdata.parse::<f64>();
                     match parsed {
                         Ok(result) => *unwrapped.x = result,
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata))
+                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
                     }
                 } else {
                     throw_error(format!(
@@ -402,7 +439,7 @@ fn parse_token<'a>(
                     let parsed = numdata.parse::<f64>();
                     match parsed {
                         Ok(result) => *unwrapped.y = result,
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata))
+                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
                     }
                 } else {
                     throw_error(format!(
