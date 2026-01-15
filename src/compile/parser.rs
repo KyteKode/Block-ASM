@@ -68,14 +68,13 @@ pub enum Node {
         name: String,
     },
 
-    Costume {
-        name: String,
-        path: String,
-        format: String,
-        bitmap_res: f64,
-        x_center: f64,
-        y_center: f64,
-    },
+    Costume(Vec<Node>),
+    CostumeName(String),
+    CostumePath(String),
+    CostumeFormat(String),
+    BitmapRes(f64),
+    XCenter(f64),
+    YCenter(f64),
 
     Sound {
         name: String,
@@ -151,6 +150,7 @@ struct ParseData<'a> {
     root_data: &'a mut Vec<Node>,
     sprite_data: Option<SpriteReferences<'a>>,
     block_data: Option<BlockReferences<'a>>,
+    costume_data: Option<&'a mut Vec<Node>>
 }
 
 fn parse_token<'a>(
@@ -161,6 +161,7 @@ fn parse_token<'a>(
     let mut root_data = &mut data.root_data;
     let mut sprite_data = &mut data.sprite_data;
     let mut block_data = &mut data.block_data;
+    let mut costume_data = &mut data.costume_data;
 
     match state {
         ParsingState::Root => {
@@ -201,13 +202,20 @@ fn parse_token<'a>(
         }
         ParsingState::Sprite => {
             if let Some(unwrapped) = sprite_data {
-                if token == &Token::Block {
-                    unwrapped.blocks.push(Node::Block(vec![], 0.0, 0.0));
-                    if let Node::Block(data, x, y) = unwrapped.blocks.last_mut().unwrap() {
-                        *block_data = Some(BlockReferences { data, x, y })
+                match token {
+                    Token::Block => {
+                        unwrapped.blocks.push(Node::Block(vec![], 0.0, 0.0));
+                        if let Node::Block(data, x, y) = unwrapped.blocks.last_mut().unwrap() {
+                            *block_data = Some(BlockReferences { data, x, y })
+                        }
                     }
-                } else {
-                    todo!("Handle other sprite level tokens (var, list, costume, sound)")
+                    Token::Costume => {
+                        unwrapped.blocks.push(Node::Costume(vec![]));
+                        if let Node::Costume(data) = unwrapped.blocks.last_mut().unwrap() {
+                            *costume_data = Some(data)
+                        }
+                    }
+                    _ => todo!("Handle other sprite level tokens (var, list, costume, sound)")
                 }
             } else {
                 maybe_unreachable!();
