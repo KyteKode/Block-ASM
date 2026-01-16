@@ -114,7 +114,7 @@ pub enum Node {
 enum ParsingState {
     Root,
     Sprite,
-    
+
     Block,
     BlockUid,
     BlockOpcode,
@@ -132,14 +132,14 @@ enum ParsingState {
     BlockTopLevel,
     BlockXPos,
     BlockYPos,
-    
+
     Costume,
     CostumeName,
     CostumePath,
     CostumeFormat,
     CostumeBitmapRes,
     CostumeCenterX,
-    CostumeCenterY
+    CostumeCenterY,
 }
 
 struct SpriteReferences<'a> {
@@ -159,7 +159,44 @@ struct ParseData<'a> {
     root_data: &'a mut Vec<Node>,
     sprite_data: Option<SpriteReferences<'a>>,
     block_data: Option<BlockReferences<'a>>,
-    costume_data: Option<&'a mut Vec<Node>>
+    costume_data: Option<&'a mut Vec<Node>>,
+}
+
+fn handle_string_lit(token: &mut Token) -> String {
+    if let Token::StringLit(mut str_data) = take(token) {
+        return str_data;
+    } else {
+        throw_error(format!(
+            "Expected string literal, got {}",
+            get_token_name(token)
+        ))
+    }
+}
+
+fn handle_bool_lit(token: &mut Token) -> bool {
+    if let Token::BoolLit(mut bool_data) = take(token) {
+        return bool_data;
+    } else {
+        throw_error(format!(
+            "Expected boolean literal, got {}",
+            get_token_name(token)
+        ))
+    }
+}
+
+fn handle_num_lit(token: &mut Token) -> f64 {
+    if let Token::NumLit(mut num_data) = take(token) {
+        let parsed = num_data.parse::<f64>();
+        match parsed {
+            Ok(result) => return result,
+            Err(_) => throw_error(format!("Could not parse {} as float", num_data)),
+        }
+    } else {
+        throw_error(format!(
+            "Expected number literal, got {}",
+            get_token_name(token)
+        ))
+    }
 }
 
 fn parse_token<'a>(
@@ -226,7 +263,7 @@ fn parse_token<'a>(
                         }
                         *state = ParsingState::Costume;
                     }
-                    _ => todo!("Handle other sprite level tokens (var, list, costume, sound)")
+                    _ => todo!("Handle other sprite level tokens (var, list, costume, sound)"),
                 }
             } else {
                 maybe_unreachable!();
@@ -252,14 +289,7 @@ fn parse_token<'a>(
         }
         ParsingState::BlockUid => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.data.push(Node::Uid(strdata));
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.data.push(Node::Uid(handle_string_lit(token)));
                 *state = ParsingState::Block;
             } else {
                 maybe_unreachable!();
@@ -267,82 +297,57 @@ fn parse_token<'a>(
         }
         ParsingState::BlockOpcode => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.data.push(Node::Opcode(strdata));
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.data.push(Node::Opcode(handle_string_lit(token)));
                 *state = ParsingState::Block;
             } else {
                 maybe_unreachable!();
             }
         }
-        ParsingState::BlockInKey => {
-            if let Token::StringLit(mut strdata) = take(token) {
-                *state = ParsingState::BlockInType(strdata);
-            } else {
-                throw_error(format!(
-                    "Expected string literal, got {}",
-                    get_token_name(token)
-                ))
-            }
-        }
+        ParsingState::BlockInKey => *state = ParsingState::BlockInType(handle_string_lit(token)),
         ParsingState::BlockInType(key) => {
-            *state = ParsingState::BlockInVal(
-                take(key),
-                match token {
-                    Token::PrototypeAnnotation => SB3Type::Prototype,
-                    Token::BlockPtrAnnotation => SB3Type::BlockPtr,
-                    Token::SubstackAnnotation => SB3Type::Substack,
-                    Token::DoubleAnnotation => SB3Type::Double,
-                    Token::IntAnnotation => SB3Type::Int,
-                    Token::PosIntAnnotation => SB3Type::PosInt,
-                    Token::PosDoubleAnnotation => SB3Type::PosDouble,
-                    Token::AngleAnnotation => SB3Type::Angle,
-                    Token::ColorAnnotation => SB3Type::Color,
-                    Token::StringAnnotation => SB3Type::String,
-                    Token::BroadcastAnnotation => SB3Type::Broadcast,
-                    Token::VarAnnotation => SB3Type::Var,
-                    Token::ListAnnotation => SB3Type::List,
-                    _ => throw_error(format!(
-                        "Expected type annotation, got {}",
-                        get_token_name(token)
-                    )),
-                },
-            );
+            let sb3_type = match token {
+                Token::PrototypeAnnotation => SB3Type::Prototype,
+                Token::BlockPtrAnnotation => SB3Type::BlockPtr,
+                Token::SubstackAnnotation => SB3Type::Substack,
+                Token::DoubleAnnotation => SB3Type::Double,
+                Token::IntAnnotation => SB3Type::Int,
+                Token::PosIntAnnotation => SB3Type::PosInt,
+                Token::PosDoubleAnnotation => SB3Type::PosDouble,
+                Token::AngleAnnotation => SB3Type::Angle,
+                Token::ColorAnnotation => SB3Type::Color,
+                Token::StringAnnotation => SB3Type::String,
+                Token::BroadcastAnnotation => SB3Type::Broadcast,
+                Token::VarAnnotation => SB3Type::Var,
+                Token::ListAnnotation => SB3Type::List,
+                _ => throw_error(format!(
+                    "Expected type annotation, got {}",
+                    get_token_name(token)
+                )),
+            };
+            *state = ParsingState::BlockInVal(take(key), sb3_type);
         }
         ParsingState::BlockInVal(key, sb3_type) => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(sb3_type) {
-                        *state = ParsingState::BlockInDataVal(take(key), *sb3_type, strdata);
-                    } else {
-                        unwrapped.data.push(Node::In(
-                            take(key),
-                            Box::new(match sb3_type {
-                                SB3Type::Prototype => Node::PrototypeData(strdata),
-                                SB3Type::BlockPtr => Node::BlockPtrData(strdata),
-                                SB3Type::Substack => Node::SubstackData(strdata),
-                                SB3Type::Double => Node::DoubleData(strdata),
-                                SB3Type::Int => Node::IntData(strdata),
-                                SB3Type::PosInt => Node::PosIntData(strdata),
-                                SB3Type::PosDouble => Node::PosDoubleData(strdata),
-                                SB3Type::Angle => Node::AngleData(strdata),
-                                SB3Type::Color => Node::ColorData(strdata),
-                                SB3Type::String => Node::StringData(strdata),
-                                _ => unreachable!(),
-                            }),
-                        ));
-                        *state = ParsingState::Block;
-                    }
+                let str_data = handle_string_lit(token);
+                if [SB3Type::Broadcast, SB3Type::Var, SB3Type::List].contains(sb3_type) {
+                    *state = ParsingState::BlockInDataVal(take(key), *sb3_type, str_data);
                 } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
+                    let data = match sb3_type {
+                        SB3Type::Prototype => Node::PrototypeData,
+                        SB3Type::BlockPtr => Node::BlockPtrData,
+                        SB3Type::Substack => Node::SubstackData,
+                        SB3Type::Double => Node::DoubleData,
+                        SB3Type::Int => Node::IntData,
+                        SB3Type::PosInt => Node::PosIntData,
+                        SB3Type::PosDouble => Node::PosDoubleData,
+                        SB3Type::Angle => Node::AngleData,
+                        SB3Type::Color => Node::ColorData,
+                        SB3Type::String => Node::StringData,
+                        _ => unreachable!(),
+                    }(str_data);
+
+                    unwrapped.data.push(Node::In(take(key), Box::new(data)));
+                    *state = ParsingState::Block;
                 }
             } else {
                 maybe_unreachable!();
@@ -350,22 +355,15 @@ fn parse_token<'a>(
         }
         ParsingState::BlockInDataVal(key, sb3_type, uid) => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.data.push(Node::In(
-                        take(key),
-                        Box::new(match sb3_type {
-                            SB3Type::Broadcast => Node::BroadcastData(take(uid), strdata),
-                            SB3Type::Var => Node::VarInData(take(uid), strdata),
-                            SB3Type::List => Node::ListInData(take(uid), strdata),
-                            _ => unreachable!(),
-                        }),
-                    ));
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                let str_data = handle_string_lit(token);
+                let data = match sb3_type {
+                    SB3Type::Broadcast => Node::BroadcastData,
+                    SB3Type::Var => Node::VarInData,
+                    SB3Type::List => Node::ListInData,
+                    _ => unreachable!(),
+                }(take(uid), str_data);
+
+                unwrapped.data.push(Node::In(take(key), Box::new(data)));
                 *state = ParsingState::Block;
             } else {
                 maybe_unreachable!();
@@ -383,7 +381,7 @@ fn parse_token<'a>(
         }
         ParsingState::BlockFieldVal(key, data) => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = token.clone() {
+                if let Token::StringLit(mut strdata) = take(token) {
                     data.push(strdata);
                 } else if *token == Token::Semicolon {
                     unwrapped.data.push(Node::Field(take(key), take(data)))
@@ -396,72 +394,29 @@ fn parse_token<'a>(
                 *state = ParsingState::Block;
             }
         }
-        ParsingState::BlockMutKey => {
-            if let Token::StringLit(mut strdata) = take(token) {
-                *state = ParsingState::BlockMutVal(strdata);
-            } else {
-                throw_error(format!(
-                    "Expected string literal, got {}",
-                    get_token_name(token)
-                ))
-            }
-        }
+        ParsingState::BlockMutKey => *state = ParsingState::BlockMutVal(handle_string_lit(token)),
         ParsingState::BlockMutVal(key) => {
             if let Some(unwrapped) = block_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.data.push(Node::Mut(take(key), strdata))
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
-                *state = ParsingState::Block;
+                let str_data = handle_string_lit(token);
+                unwrapped.data.push(Node::Mut(take(key), str_data));
             }
         }
         ParsingState::BlockTopLevel => {
             if let Some(unwrapped) = block_data {
-                if let Token::BoolLit(mut booldata) = take(token) {
-                    unwrapped.data.push(Node::TopLevel(booldata));
-                    *state = ParsingState::Block;
-                } else {
-                    throw_error(format!(
-                        "Expected boolean literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.data.push(Node::TopLevel(handle_bool_lit(token)));
+                *state = ParsingState::Block;
             }
         }
         ParsingState::BlockXPos => {
             if let Some(unwrapped) = block_data {
-                if let Token::NumLit(numdata) = token {
-                    let parsed = numdata.parse::<f64>();
-                    match parsed {
-                        Ok(result) => *unwrapped.x = result,
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
-                    }
-                } else {
-                    throw_error(format!(
-                        "Expected number literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                *unwrapped.x = handle_num_lit(token);
+                *state = ParsingState::Block;
             }
         }
         ParsingState::BlockYPos => {
             if let Some(unwrapped) = block_data {
-                if let Token::NumLit(numdata) = token {
-                    let parsed = numdata.parse::<f64>();
-                    match parsed {
-                        Ok(result) => *unwrapped.y = result,
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
-                    }
-                } else {
-                    throw_error(format!(
-                        "Expected number literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                *unwrapped.y = handle_num_lit(token);
+                *state = ParsingState::Block;
             }
         }
         ParsingState::Costume => {
@@ -475,97 +430,43 @@ fn parse_token<'a>(
                 _ => throw_error(format!(
                     "Unexpected {} in costume scope",
                     get_token_name(token)
-                ))
+                )),
             }
         }
         ParsingState::CostumeName => {
             if let Some(unwrapped) = costume_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.push(Node::CostumeName(strdata));
-                    *state = ParsingState::Costume;
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.push(Node::CostumeName(handle_string_lit(token)));
+                *state = ParsingState::Costume;
             }
         }
         ParsingState::CostumePath => {
             if let Some(unwrapped) = costume_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.push(Node::CostumePath(strdata));
-                    *state = ParsingState::Costume;
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.push(Node::CostumePath(handle_string_lit(token)));
+                *state = ParsingState::Costume;
             }
         }
         ParsingState::CostumeFormat => {
             if let Some(unwrapped) = costume_data {
-                if let Token::StringLit(mut strdata) = take(token) {
-                    unwrapped.push(Node::CostumeFormat(strdata));
-                    *state = ParsingState::Costume;
-                } else {
-                    throw_error(format!(
-                        "Expected string literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.push(Node::CostumeFormat(handle_string_lit(token)));
+                *state = ParsingState::Costume;
             }
         }
         ParsingState::CostumeBitmapRes => {
             if let Some(unwrapped) = costume_data {
-                if let Token::NumLit(mut numdata) = take(token) {
-                    let parsed = numdata.parse::<f64>();
-                    match parsed {
-                        Ok(result) => unwrapped.push(Node::BitmapRes(result)),
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
-                    }
-                    *state = ParsingState::Costume;
-                } else {
-                    throw_error(format!(
-                        "Expected number literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.push(Node::BitmapRes(handle_num_lit(token)));
+                *state = ParsingState::Costume;
             }
         }
         ParsingState::CostumeCenterX => {
             if let Some(unwrapped) = costume_data {
-                if let Token::NumLit(mut numdata) = take(token) {
-                    let parsed = numdata.parse::<f64>();
-                    match parsed {
-                        Ok(result) => unwrapped.push(Node::XCenter(result)),
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
-                    }
-                    *state = ParsingState::Costume;
-                } else {
-                    throw_error(format!(
-                        "Expected number literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.push(Node::XCenter(handle_num_lit(token)));
+                *state = ParsingState::Costume;
             }
         }
         ParsingState::CostumeCenterY => {
             if let Some(unwrapped) = costume_data {
-                if let Token::NumLit(mut numdata) = take(token) {
-                    let parsed = numdata.parse::<f64>();
-                    match parsed {
-                        Ok(result) => unwrapped.push(Node::YCenter(result)),
-                        Err(_) => throw_error(format!("Could not parse {} as float", numdata)),
-                    }
-                    *state = ParsingState::Costume;
-                } else {
-                    throw_error(format!(
-                        "Expected number literal, got {}",
-                        get_token_name(token)
-                    ))
-                }
+                unwrapped.push(Node::YCenter(handle_num_lit(token)));
+                *state = ParsingState::Costume;
             }
         }
         _ => unimplemented!(),
