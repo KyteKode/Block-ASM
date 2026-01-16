@@ -17,6 +17,11 @@ macro_rules! maybe_unreachable {
 }
 pub(crate) use maybe_unreachable;
 
+pub(crate) fn throw_internal_error(msg: impl Into<String>) -> ! {
+    eprintln!("{}", format!("Internal Error: {}", msg.into()).purple());
+    process::exit(1);
+}
+
 pub(crate) fn throw_error(msg: impl Into<String>) -> ! {
     eprintln!("{}", format!("Error: {}", msg.into()).red());
     process::exit(1);
