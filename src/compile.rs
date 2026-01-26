@@ -2,16 +2,13 @@
 // Copyright (C) 2026 KyteKode
 
 mod error;
-
-// Errors are currently broken due to me changing how errors work
-//use error::throw_fatal_error;
+use error::{throw_errors, BasmError};
 
 mod lexer;
 
 use std::env;
 use std::path::PathBuf;
 
-#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputType {
     #[default]
@@ -20,7 +17,6 @@ pub enum OutputType {
     Parsed,
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, Default)]
 pub struct CompileData {
     pub output_name: String,
@@ -32,10 +28,11 @@ pub struct CompileData {
     pub output_type: OutputType,
 }
 
-#[allow(unused)]
 // Parses command line arguments
 fn handle_args(args: Vec<String>) -> CompileData {
     let mut data = CompileData::default();
+
+    let mut errors = Vec::new();
 
     // Tracks if the current argument is meant to be the output filename
     let mut is_output_name = false;
@@ -48,15 +45,20 @@ fn handle_args(args: Vec<String>) -> CompileData {
 
         // Handles source path, which is always second argument
         if idx == 1 {
-            let working_dir =
-                error::expect(env::current_dir(), "Could not get working directory", 1);
-            let path = working_dir.join(arg);
-            let canonical = error::expect(
-                path.canonicalize(),
-                format!("Could not canonicalize path {}", path.display()),
-                1,
-            );
-            data.source_path = canonical;
+            let working_dir = env::current_dir();
+            if working_dir.is_err() {
+                errors.push(BasmError::WorkingDirectoryNotFound);
+                continue;
+            }
+
+            let path = working_dir.unwrap().join(arg);
+            let canonical = path.canonicalize();
+            if canonical.is_err() {
+                errors.push(BasmError::CannotCanoncializePath { path });
+                continue;
+            }
+
+            data.source_path = canonical.unwrap();
             continue;
         }
 
@@ -73,18 +75,22 @@ fn handle_args(args: Vec<String>) -> CompileData {
             "-v" | "--verbose" => data.verbose_flag = true,
             "-L" => {
                 if data.output_type == OutputType::Parsed {
-                    //throw_fatal_error("Cannot determine whether to output parsed or lexed data", 1)
+                    errors.push(BasmError::UndeterminedOutputType);
                 }
             }
             "-P" => {
                 if data.output_type == OutputType::Parsed {
-                    //throw_fatal_error("Cannot determine whether to output lexed or parsed data", 1)
+                    errors.push(BasmError::UndeterminedOutputType);
                 }
             }
-            _ => {} //throw_fatal_error(format!("Found unknown terminal argument {}", arg), 1),
+            _ => errors.push(BasmError::UnknownTerminalArgument { arg: arg.clone() })
         }
 
         is_output_name = false;
+    }
+    
+    if !errors.is_empty() {
+        throw_errors(errors);
     }
 
     data
