@@ -10,6 +10,7 @@ mod lexer;
 use std::env;
 use std::path::PathBuf;
 
+#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputType {
     #[default]
@@ -18,6 +19,7 @@ pub enum OutputType {
     Parsed,
 }
 
+#[allow(unused)]
 #[derive(Debug, Clone, Default)]
 pub struct CompileData {
     pub output_name: String,
@@ -29,6 +31,7 @@ pub struct CompileData {
     pub output_type: OutputType,
 }
 
+#[allow(unused)]
 // Parses command line arguments
 fn handle_args(args: Vec<String>) -> CompileData {
     let mut data = CompileData::default();
