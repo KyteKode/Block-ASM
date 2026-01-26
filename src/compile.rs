@@ -2,7 +2,10 @@
 // Copyright (C) 2026 KyteKode
 
 mod error;
+
 use error::throw_fatal_error;
+
+mod lexer;
 
 use std::env;
 use std::path::PathBuf;
