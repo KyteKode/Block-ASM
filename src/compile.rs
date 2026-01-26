@@ -3,7 +3,8 @@
 
 mod error;
 
-use error::throw_fatal_error;
+// Errors are currently broken due to me changing how errors work
+//use error::throw_fatal_error;
 
 mod lexer;
 
@@ -72,15 +73,15 @@ fn handle_args(args: Vec<String>) -> CompileData {
             "-v" | "--verbose" => data.verbose_flag = true,
             "-L" => {
                 if data.output_type == OutputType::Parsed {
-                    throw_fatal_error("Cannot determine whether to output parsed or lexed data", 1)
+                    //throw_fatal_error("Cannot determine whether to output parsed or lexed data", 1)
                 }
             }
             "-P" => {
                 if data.output_type == OutputType::Parsed {
-                    throw_fatal_error("Cannot determine whether to output lexed or parsed data", 1)
+                    //throw_fatal_error("Cannot determine whether to output lexed or parsed data", 1)
                 }
             }
-            _ => throw_fatal_error(format!("Found unknown terminal argument {}", arg), 1),
+            _ => {} //throw_fatal_error(format!("Found unknown terminal argument {}", arg), 1),
         }
 
         is_output_name = false;

@@ -1,17 +1,21 @@
 #[cfg(test)]
 
+use super::*;
+
 fn scanning_template(inputs: Vec<&str>, expected: Vec<Vec<&str>>) {
     let pairs = inputs.iter().zip(expected.iter());
 
     for (input, expected) in pairs {
         let result = super::scan(*input);
 
-        // Converts expected from a Vec<&&str> to a Vec<String>
+        // Converts expected from a &Vec<&str> to a Vec<Symbol>
         let owned_expected: Vec<String> = expected.iter()
             .map(|x| String::from(*x))
             .collect();
-
-        assert_eq!(owned_expected, result);
+        
+        for (expected_data, result_symbol) in owned_expected.iter().zip(result.iter()) {
+            assert_eq!(*expected_data, *result_symbol.data);
+        }
     }
 }
 
