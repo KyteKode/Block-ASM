@@ -8,13 +8,16 @@ use colored::Colorize;
 
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum BasmError {
     #[error(": Could not get working directory")]
     WorkingDirectoryNotFound,
 
     #[error(": Could not get canonicalize path `{path}`")]
     CannotCanoncializePath { path: PathBuf },
+
+    #[error(": Could not read source at path `{path}`")]
+    CannotReadSource { path: PathBuf },
 
     #[error(": Cannot determine whether to output parsed or lexed data")]
     UndeterminedOutputType,

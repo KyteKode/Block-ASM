@@ -7,7 +7,7 @@ use error::{throw_errors, BasmError};
 mod lexer;
 
 use std::env;
-use std::path::PathBuf;
+use std::fs::read_to_string;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputType {
@@ -20,7 +20,7 @@ pub enum OutputType {
 #[derive(Debug, Clone, Default)]
 pub struct CompileData {
     pub output_name: String,
-    pub source_path: PathBuf,
+    pub source: String,
 
     pub version_flag: bool,
     pub verbose_flag: bool,
@@ -29,7 +29,7 @@ pub struct CompileData {
 }
 
 // Parses command line arguments
-fn handle_args(args: Vec<String>) -> CompileData {
+pub fn handle_args(args: Vec<String>) -> CompileData {
     let mut data = CompileData::default();
 
     let mut errors = Vec::new();
@@ -45,12 +45,16 @@ fn handle_args(args: Vec<String>) -> CompileData {
 
         // Handles source path, which is always second argument
         if idx == 1 {
+            // Gets working directory and queues an error if it cannot be read
             let working_dir = env::current_dir();
             if working_dir.is_err() {
                 errors.push(BasmError::WorkingDirectoryNotFound);
                 continue;
             }
 
+            // Canonicalizes a path.
+            // For example, /hello/world/../myFolder becomes /hello/myFolder
+            // If it cannot be canonicalized, it queues an error.
             let path = working_dir.unwrap().join(arg);
             let canonical = path.canonicalize();
             if canonical.is_err() {
@@ -58,7 +62,14 @@ fn handle_args(args: Vec<String>) -> CompileData {
                 continue;
             }
 
-            data.source_path = canonical.unwrap();
+            // Reads the source file, and queues an error if it cannot be read.
+            let file_data = read_to_string(canonical.unwrap());
+            if file_data.is_err() {
+                errors.push(BasmError::CannotReadSource { path });
+                continue;
+            }
+
+            data.source = file_data.unwrap();
             continue;
         }
 
@@ -69,6 +80,8 @@ fn handle_args(args: Vec<String>) -> CompileData {
             continue;
         }
 
+        is_output_name = false;
+
         match arg.as_str() {
             "-o" => is_output_name = true,
             "--version" => data.version_flag = true,
@@ -77,23 +90,38 @@ fn handle_args(args: Vec<String>) -> CompileData {
                 if data.output_type == OutputType::Parsed {
                     errors.push(BasmError::UndeterminedOutputType);
                 }
+                data.output_type = OutputType::Lexed;
             }
             "-P" => {
-                if data.output_type == OutputType::Parsed {
+                if data.output_type == OutputType::Lexed {
                     errors.push(BasmError::UndeterminedOutputType);
                 }
+                data.output_type = OutputType::Parsed;
             }
             _ => errors.push(BasmError::UnknownTerminalArgument { arg: arg.clone() })
         }
-
-        is_output_name = false;
     }
-    
+
+    // Throws all queued errors
     if !errors.is_empty() {
         throw_errors(errors);
     }
 
     data
+}
+
+// Currently unfinished.
+// Only returns unit type because I'm not sure what the return type should be yet.
+// Eventually, I will add the parsing, semantic analysis, etc to this function.
+pub fn compile_with_data(data: CompileData) {
+    lexer::lex(data.source);
+    todo!("Finish compilation")
+}
+
+// Is ! type for the same reason `compile_with_data` is () type.
+pub fn compile(args: Vec<String>) -> ! {
+    compile_with_data(handle_args(args));
+    todo!("Replace ! type with actual return type when changing compile_with_data return type")
 }
 
 /*

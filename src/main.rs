@@ -4,5 +4,5 @@
 mod compile;
 
 fn main() {
-    println!("Hello, world!");
+    compile::compile(std::env::args().collect());
 }
