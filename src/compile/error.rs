@@ -27,17 +27,22 @@ pub(crate) enum BasmError {
 
 
 
-    #[error("(line {line}): Found unclosed string literal")]
+    #[error("(line `{line}`): Found unclosed string literal")]
     UnclosedStringLiteral { line: u32 },
 
-    #[error("(line {line}): Found unclosed target header")]
+    #[error("(line `{line}`): Found unclosed target header")]
     UnclosedTargetHeader { line: u32 },
 
-    #[error("(line {line}): Found unclosed monitor header")]
+    #[error("(line `{line}`): Found unclosed monitor header")]
     UnclosedMonitorHeader { line: u32 },
 
-    #[error("(line {line}): Could not parse unknown symbol `{data}`")]
-    UnknownSymbol { line: u32, data: String }
+    #[error("(line `{line}`): Could not lex unknown symbol `{data}`")]
+    UnknownSymbol { line: u32, data: String },
+
+
+
+    #[error("(line {line}): Unexpected token `{data}` found in top level")]
+    UnexpectedTokenInTopLevel { line: u32, data: String }
 }
 
 pub(crate) fn throw_errors(errors: Vec<BasmError>) -> ! {

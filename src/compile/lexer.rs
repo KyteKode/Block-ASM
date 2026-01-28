@@ -188,7 +188,7 @@ fn lex_symbol(symbol: Symbol) -> Result<Token, BasmError> {
     }
 
     // Checks if the symbol is a punctuator
-    if symbol.data == ";" || symbol.data == "end" {
+    if symbol.data == ";" || symbol.data == "end" || symbol.data == "!end" {
         return Ok(Token {
             token_type: TokenType::Punctuator,
             data: symbol.data,

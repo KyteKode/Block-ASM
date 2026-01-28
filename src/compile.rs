@@ -5,6 +5,8 @@ mod error;
 use error::{throw_errors, BasmError};
 
 mod lexer;
+mod parser;
+mod node;
 
 use std::env;
 use std::fs::read_to_string;
@@ -114,7 +116,8 @@ pub fn handle_args(args: Vec<String>) -> CompileData {
 // Only returns unit type because I'm not sure what the return type should be yet.
 // Eventually, I will add the parsing, semantic analysis, etc to this function.
 pub fn compile_with_data(data: CompileData) {
-    lexer::lex(data.source);
+    let tokens = lexer::lex(data.source);
+    let _ = parser::parse(&tokens);
     todo!("Finish compilation")
 }
 
