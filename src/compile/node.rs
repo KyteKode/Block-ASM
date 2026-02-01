@@ -10,6 +10,8 @@ pub struct Node {
 pub enum NodeData {
     #[default]
     Root,
+    
+    Target, Monitor,
 
     // # Metadata
     SemVer, VM, Agent,

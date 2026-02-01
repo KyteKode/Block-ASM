@@ -98,18 +98,21 @@ pub fn scan(input_source: impl Into<String>) -> Vec<Symbol> {
     symbols
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Token {
     pub token_type: TokenType,
     pub data: String,
     pub line: u32
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TokenType {
     Keyword,
     Literal,
-    Punctuator
+    Punctuator,
+    
+    #[default]
+    Placeholder
 }
 
 fn lex_symbol(symbol: Symbol) -> Result<Token, BasmError> {

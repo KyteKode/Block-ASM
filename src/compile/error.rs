@@ -8,7 +8,7 @@ use colored::Colorize;
 
 use thiserror::Error;
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub(crate) enum BasmError {
     #[error(": Could not get working directory")]
     WorkingDirectoryNotFound,
@@ -25,8 +25,6 @@ pub(crate) enum BasmError {
     #[error(": Unknown terminal argument `{arg}`")]
     UnknownTerminalArgument { arg: String },
 
-
-
     #[error("(line `{line}`): Found unclosed string literal")]
     UnclosedStringLiteral { line: u32 },
 
@@ -39,10 +37,8 @@ pub(crate) enum BasmError {
     #[error("(line `{line}`): Could not lex unknown symbol `{data}`")]
     UnknownSymbol { line: u32, data: String },
 
-
-
     #[error("(line {line}): Unexpected token `{data}` found in top level")]
-    UnexpectedTokenInTopLevel { line: u32, data: String }
+    UnexpectedTokenInTopLevel { line: u32, data: String },
 }
 
 pub(crate) fn throw_errors(errors: Vec<BasmError>) -> ! {
